@@ -31,6 +31,9 @@ MUTED  = "#7e8a99"
 TEAL   = "#19c39a"
 TEALH  = "#21d8ac"
 GREEN  = "#2ec27e"
+GREENH = "#39d491"
+TT_CY  = "#25f4ee"   # ciano do TikTok
+TT_PK  = "#fe2c55"   # rosa do TikTok
 FONT   = "Segoe UI"
 
 CORES = ["#a78bfa", "#34d399", "#60a5fa", "#fbbf24", "#fb7185",
@@ -197,11 +200,14 @@ class App:
 
         logo = tk.Frame(side, bg=SIDE)
         logo.pack(fill="x", pady=(20, 24), padx=18)
-        lc = tk.Canvas(logo, width=34, height=34, bg=SIDE, highlightthickness=0)
-        lc.create_oval(2, 2, 32, 32, fill=TEAL, outline="")
-        lc.create_text(17, 17, text="🐬", font=(FONT, 13))
+        lc = tk.Canvas(logo, width=36, height=36, bg=SIDE, highlightthickness=0)
+        lc.create_oval(1, 1, 35, 35, fill="#0c0d11", outline="")
+        # nota do TikTok com efeito glitch (ciano + rosa + branco)
+        lc.create_text(20, 18, text="♪", fill=TT_CY, font=(FONT, 17, "bold"))
+        lc.create_text(16, 18, text="♪", fill=TT_PK, font=(FONT, 17, "bold"))
+        lc.create_text(18, 18, text="♪", fill="#ffffff", font=(FONT, 17, "bold"))
         lc.pack(side="left")
-        tk.Label(logo, text="Contas", fg=FG, bg=SIDE,
+        tk.Label(logo, text="TikTok", fg=FG, bg=SIDE,
                  font=(FONT, 14, "bold")).pack(side="left", padx=8)
 
         item = tk.Frame(side, bg=ROW)
@@ -351,9 +357,9 @@ class App:
         RoundBtn(card, "🗑", lambda: self._remover(nome), w=40, h=32, r=8,
                  fill=CHIP, hover="#3a2630", fg=MUTED, pbg=ROW,
                  size=11).pack(side="right", padx=(4, 16))
-        RoundBtn(card, "▷  START", lambda: self._abrir(nome), w=110, h=34,
-                 r=9, pbg=ROW, contorno=GREEN, size=11).pack(side="right",
-                                                             padx=4)
+        RoundBtn(card, "▶  START", lambda: self._abrir(nome), w=116, h=36,
+                 r=9, fill=GREEN, hover=GREENH, fg="#06231f", pbg=ROW,
+                 size=11).pack(side="right", padx=4)
         tag = tk.Canvas(card, width=84, height=24, bg=ROW,
                         highlightthickness=0)
         _round_rect(tag, 1, 1, 83, 23, 7, fill=CHIP, outline="")
