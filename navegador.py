@@ -15,23 +15,22 @@ from tkinter import ttk, simpledialog, messagebox
 PASTA = os.path.dirname(os.path.abspath(__file__))
 CHROME_UDD = os.path.join(PASTA, "navegadores")
 REG = os.path.join(PASTA, "contas.json")
+ICONE = os.path.join(PASTA, "app.ico")
 LOGIN_URL = "https://seller-br.tiktok.com/account/login"
 
 # ---- paleta (estilo Dolphin: navy escuro) ----
-SIDE   = "#0d1219"   # barra lateral
-BG     = "#121821"   # fundo principal
-BAR    = "#0f151d"   # topo / cabecalho tabela
-ROW    = "#19212c"   # linha
-ROWH   = "#202a37"   # linha hover
-LINE   = "#232d3a"   # divisorias
-CHIP   = "#1c2631"   # chip/tag bg
+SIDE   = "#0d1219"
+BG     = "#121821"
+BAR    = "#0f151d"
+ROW    = "#19212c"
+ROWH   = "#202a37"
+LINE   = "#2a3543"
+CHIP   = "#1c2631"
 FG     = "#e9eef5"
 MUTED  = "#7e8a99"
-TEAL   = "#19c39a"   # acento (criar perfil / ativo)
+TEAL   = "#19c39a"
 TEALH  = "#21d8ac"
-GREEN  = "#2ec27e"   # START (contorno)
-BLUE   = "#3b82f6"
-REDX   = "#e5564e"
+GREEN  = "#2ec27e"
 FONT   = "Segoe UI"
 
 CORES = ["#a78bfa", "#34d399", "#60a5fa", "#fbbf24", "#fb7185",
@@ -111,9 +110,10 @@ class App:
         self.contas = self._carregar()
         root.title("Contas TikTok")
         root.configure(bg=BG)
+        self._estilo()
 
         # ===================== BARRA LATERAL =====================
-        side = tk.Frame(root, bg=SIDE, width=210)
+        side = tk.Frame(root, bg=SIDE, width=212)
         side.pack(side="left", fill="y")
         side.pack_propagate(False)
 
@@ -126,7 +126,6 @@ class App:
         tk.Label(logo, text="Contas", fg=FG, bg=SIDE,
                  font=(FONT, 14, "bold")).pack(side="left", padx=8)
 
-        # item ativo "Todos os perfis" (com barra teal a esquerda)
         item = tk.Frame(side, bg=ROW)
         item.pack(fill="x", padx=10)
         tk.Frame(item, bg=TEAL, width=3).pack(side="left", fill="y")
@@ -137,8 +136,6 @@ class App:
         tk.Label(side, textvariable=self.var_cont, fg=MUTED, bg=SIDE,
                  font=(FONT, 10), anchor="w").pack(fill="x", padx=24,
                                                    pady=(14, 0))
-
-        # rodape da sidebar
         tk.Label(side, text="sem proxy · sem anti-deteccao", fg=MUTED, bg=SIDE,
                  font=(FONT, 8), wraplength=170, justify="left").pack(
             side="bottom", anchor="w", padx=18, pady=16)
@@ -152,11 +149,9 @@ class App:
         top.pack_propagate(False)
         tk.Label(top, text="Todos os perfis", fg=FG, bg=BG,
                  font=(FONT, 18, "bold")).pack(side="left")
-
         RoundBtn(top, "+  Criar perfil", self.nova, w=150, h=40, r=10,
                  fill=TEAL, hover=TEALH, fg="#06231f", pbg=BG,
                  size=12).pack(side="right")
-        # busca
         cx = tk.Canvas(top, width=200, height=38, bg=BG, highlightthickness=0)
         _round_rect(cx, 1, 1, 199, 37, 9, fill=BAR, outline=LINE)
         cx.pack(side="right", padx=10)
@@ -166,7 +161,6 @@ class App:
         cx.create_window(102, 19, window=ent, width=168, height=22)
         self.var_busca.trace_add("write", lambda *a: self._montar_lista())
 
-        # cabecalho da tabela
         hd = tk.Frame(main, bg=BAR, height=34)
         hd.pack(fill="x", padx=22)
         hd.pack_propagate(False)
@@ -174,14 +168,12 @@ class App:
                  font=(FONT, 9, "bold")).pack(side="left", padx=(16, 0))
         tk.Label(hd, text="AÇÕES", fg=MUTED, bg=BAR,
                  font=(FONT, 9, "bold")).pack(side="right", padx=(0, 20))
-        tk.Label(hd, text="TAGS", fg=MUTED, bg=BAR,
-                 font=(FONT, 9, "bold")).pack(side="right", padx=(0, 150))
 
-        # lista rolavel
         cont = tk.Frame(main, bg=BG)
         cont.pack(fill="both", expand=True, padx=22, pady=(0, 16))
         self.canvas = tk.Canvas(cont, bg=BG, highlightthickness=0)
-        sb = ttk.Scrollbar(cont, orient="vertical", command=self.canvas.yview)
+        sb = ttk.Scrollbar(cont, orient="vertical", style="Dark.Vertical.TScrollbar",
+                           command=self.canvas.yview)
         self.lista = tk.Frame(self.canvas, bg=BG)
         self._win = self.canvas.create_window((0, 0), window=self.lista,
                                               anchor="nw")
@@ -200,6 +192,19 @@ class App:
                 "Chrome nao encontrado",
                 "Instale o Google Chrome (google.com/chrome) e abra de novo.")
         self._montar_lista()
+
+    def _estilo(self):
+        s = ttk.Style(self.root)
+        try:
+            s.theme_use("clam")
+        except Exception:
+            pass
+        # barra de rolagem ESCURA (sem o clam fica branca no Windows)
+        s.configure("Dark.Vertical.TScrollbar", troughcolor=BG,
+                    background=LINE, bordercolor=BG, arrowcolor=MUTED,
+                    relief="flat", borderwidth=0)
+        s.map("Dark.Vertical.TScrollbar",
+              background=[("active", ROWH), ("pressed", ROWH)])
 
     # ---------- dados ----------
     def _carregar(self):
@@ -235,8 +240,12 @@ class App:
                 self._linha(i, nome)
 
     def _placeholder(self, txt):
-        tk.Label(self.lista, text=txt, fg=MUTED, bg=BG,
-                 font=(FONT, 12)).pack(pady=40)
+        box = tk.Frame(self.lista, bg=BG)
+        box.pack(pady=(90, 0))
+        tk.Label(box, text="🗂️", fg=FG, bg=BG,
+                 font=(FONT, 44)).pack()
+        tk.Label(box, text=txt, fg=MUTED, bg=BG,
+                 font=(FONT, 12)).pack(pady=(6, 0))
 
     def _linha(self, i, nome):
         cor = CORES[i % len(CORES)]
@@ -244,7 +253,6 @@ class App:
         card.pack(fill="x", pady=(0, 1))
         card.pack_propagate(False)
 
-        # icones tipo Dolphin (windows + globo)
         tk.Label(card, text="⊞", fg="#5b9bd5", bg=ROW,
                  font=(FONT, 13)).pack(side="left", padx=(16, 2))
         tk.Label(card, text="🌐", fg=MUTED, bg=ROW,
@@ -254,14 +262,12 @@ class App:
         tk.Label(card, text=nome, fg=FG, bg=ROW,
                  font=(FONT, 13, "bold")).pack(side="left")
 
-        # acoes (direita)
         RoundBtn(card, "🗑", lambda: self._remover(nome), w=40, h=32, r=8,
                  fill=CHIP, hover="#3a2630", fg=MUTED, pbg=ROW,
                  size=11).pack(side="right", padx=(4, 16))
         RoundBtn(card, "▷  START", lambda: self._abrir(nome), w=110, h=34,
                  r=9, pbg=ROW, contorno=GREEN, size=11).pack(side="right",
                                                              padx=4)
-        # tag estilo Dolphin
         tag = tk.Canvas(card, width=84, height=24, bg=ROW,
                         highlightthickness=0)
         _round_rect(tag, 1, 1, 83, 23, 7, fill=CHIP, outline="")
@@ -349,6 +355,11 @@ def _corrigir_dpi():
 def main():
     _corrigir_dpi()
     root = tk.Tk()
+    try:                                  # icone proprio (tira a pena do Python)
+        if os.path.exists(ICONE):
+            root.iconbitmap(ICONE)
+    except Exception:
+        pass
     try:
         dpi = root.winfo_fpixels("1i")
         root.tk.call("tk", "scaling", dpi / 72.0)
