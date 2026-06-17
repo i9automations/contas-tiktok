@@ -210,6 +210,11 @@ class App:
         tk.Label(logo, text="TikTok", fg=FG, bg=SIDE,
                  font=(FONT, 14, "bold")).pack(side="left", padx=8)
 
+        # botao CRIAR PERFIL (sempre visivel, mesmo com a janela estreita)
+        RoundBtn(side, "+  Criar perfil", self.nova, w=176, h=42, r=11,
+                 fill=TEAL, hover=TEALH, fg="#06231f", pbg=SIDE,
+                 size=12).pack(padx=18, pady=(0, 18))
+
         item = tk.Frame(side, bg=ROW)
         item.pack(fill="x", padx=10)
         tk.Frame(item, bg=TEAL, width=3).pack(side="left", fill="y")
