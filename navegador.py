@@ -258,16 +258,22 @@ class App:
         self.canvas = tk.Canvas(cont, bg=BG, highlightthickness=0)
         sb = ttk.Scrollbar(cont, orient="vertical", style="Dark.Vertical.TScrollbar",
                            command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
         self.lista = tk.Frame(self.canvas, bg=BG)
         self._win = self.canvas.create_window((0, 0), window=self.lista,
                                               anchor="nw")
-        self.lista.bind("<Configure>", self._on_lista_config)
-        self.canvas.bind("<Configure>", self._on_canvas_config)
-        self.canvas.configure(yscrollcommand=sb.set)
-        self.canvas.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
-        self.canvas.bind_all("<MouseWheel>", lambda e: self.canvas.yview_scroll(
-            int(-e.delta / 120), "units"))
+        # largura do conteudo acompanha o canvas; area de rolagem segue a lista
+        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(
+            self._win, width=e.width))
+        self.lista.bind("<Configure>", lambda e: self.canvas.configure(
+            scrollregion=self.canvas.bbox("all")))
+        # roda do mouse so quando o cursor esta sobre a lista (evita eventos soltos)
+        self.canvas.bind("<Enter>", lambda e: self.canvas.bind_all(
+            "<MouseWheel>", self._wheel))
+        self.canvas.bind("<Leave>", lambda e: self.canvas.unbind_all(
+            "<MouseWheel>"))
 
         if not self.chrome:
             self.root.after(400, lambda: avisar(
@@ -319,25 +325,9 @@ class App:
             for i, nome in enumerate(self.contas):
                 if nome in visiveis:
                     self._linha(i, nome)
-        # mantem a lista no TOPO (corrige o scroll ficar preso embaixo)
-        self.root.after_idle(self._sync_scroll)
 
-    def _on_canvas_config(self, e):
-        self.canvas.itemconfig(self._win, width=e.width)
-
-    def _on_lista_config(self, e):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
-    def _sync_scroll(self):
-        # chamado 1x apos montar a lista: fixa a area de rolagem e volta ao topo
-        try:
-            self.canvas.update_idletasks()
-            box = self.canvas.bbox("all")
-            if box:
-                self.canvas.configure(scrollregion=box)
-            self.canvas.yview_moveto(0)
-        except Exception:
-            pass
+    def _wheel(self, e):
+        self.canvas.yview_scroll(int(-e.delta / 120), "units")
 
     def _placeholder(self, txt):
         box = tk.Frame(self.lista, bg=BG)
