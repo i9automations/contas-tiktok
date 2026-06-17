@@ -102,6 +102,84 @@ def _avatar(parent, inicial, cor, bg, size=34):
     return c
 
 
+class Dialogo(tk.Toplevel):
+    """Dialogo ESCURO no tema (substitui os popups brancos do tkinter).
+    modo: 'input' (texto), 'confirma' (Sim/Cancelar), 'info' (OK)."""
+
+    def __init__(self, parent, titulo, msg, modo="input"):
+        super().__init__(parent)
+        self.modo = modo
+        self.resultado = None
+        self.var = tk.StringVar()
+        self.title(titulo)
+        self.configure(bg=ROW)
+        try:
+            if os.path.exists(ICONE):
+                self.iconbitmap(ICONE)
+        except Exception:
+            pass
+        self.transient(parent)
+        self.resizable(False, False)
+
+        tk.Label(self, text=titulo, bg=ROW, fg=FG,
+                 font=(FONT, 14, "bold")).pack(anchor="w", padx=24, pady=(20, 4))
+        tk.Label(self, text=msg, bg=ROW, fg=MUTED, font=(FONT, 10),
+                 justify="left", wraplength=360).pack(anchor="w", padx=24)
+
+        if modo == "input":
+            cx = tk.Canvas(self, width=362, height=40, bg=ROW,
+                           highlightthickness=0)
+            _round_rect(cx, 1, 1, 361, 39, 9, fill=BAR, outline=LINE)
+            cx.pack(padx=24, pady=(14, 2))
+            ent = tk.Entry(cx, textvariable=self.var, bg=BAR, fg=FG,
+                           insertbackground=FG, relief="flat", font=(FONT, 12))
+            cx.create_window(182, 20, window=ent, width=332, height=24)
+            ent.focus_set()
+            ent.bind("<Return>", lambda e: self._ok())
+
+        bar = tk.Frame(self, bg=ROW)
+        bar.pack(fill="x", padx=24, pady=(16, 20))
+        ok_txt = "OK" if modo != "confirma" else "Sim"
+        RoundBtn(bar, ok_txt, self._ok, w=96, h=36, fill=TEAL, hover=TEALH,
+                 fg="#06231f", pbg=ROW).pack(side="right", padx=(8, 0))
+        if modo != "info":
+            RoundBtn(bar, "Cancelar", self._cancel, w=104, h=36, fill=CHIP,
+                     hover=ROWH, fg=FG, pbg=ROW).pack(side="right")
+
+        self.bind("<Escape>", lambda e: self._cancel())
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.update_idletasks()
+        try:
+            w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+            x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - h) // 3
+            self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        except Exception:
+            pass
+        self.grab_set()
+        self.wait_window()
+
+    def _ok(self):
+        self.resultado = self.var.get().strip() if self.modo == "input" else True
+        self.destroy()
+
+    def _cancel(self):
+        self.resultado = None if self.modo == "input" else False
+        self.destroy()
+
+
+def pedir_texto(parent, titulo, msg):
+    return Dialogo(parent, titulo, msg, "input").resultado
+
+
+def confirmar(parent, titulo, msg):
+    return bool(Dialogo(parent, titulo, msg, "confirma").resultado)
+
+
+def avisar(parent, titulo, msg):
+    Dialogo(parent, titulo, msg, "info")
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -188,9 +266,9 @@ class App:
             int(-e.delta / 120), "units"))
 
         if not self.chrome:
-            messagebox.showwarning(
-                "Chrome nao encontrado",
-                "Instale o Google Chrome (google.com/chrome) e abra de novo.")
+            self.root.after(400, lambda: avisar(
+                self.root, "Chrome não encontrado",
+                "Instale o Google Chrome (google.com/chrome) e abra de novo."))
         self._montar_lista()
 
     def _estilo(self):
@@ -277,16 +355,12 @@ class App:
 
     # ---------- acoes ----------
     def nova(self):
-        nome = simpledialog.askstring(
-            "Novo perfil", "Nome do cliente (ex: Loja da Ana):",
-            parent=self.root)
-        if not nome:
-            return
-        nome = nome.strip()
+        nome = pedir_texto(self.root, "Novo perfil",
+                           "Nome do cliente (ex: Loja da Ana):")
         if not nome:
             return
         if nome in self.contas:
-            messagebox.showinfo("Ja existe", "Ja tem um perfil com esse nome.")
+            avisar(self.root, "Já existe", "Já tem um perfil com esse nome.")
             return
         self.contas.append(nome)
         self._salvar()
@@ -309,8 +383,8 @@ class App:
 
     def _abrir(self, nome):
         if not self.chrome:
-            messagebox.showerror("Chrome nao encontrado",
-                                 "Nao achei o Google Chrome instalado.")
+            avisar(self.root, "Chrome não encontrado",
+                   "Não achei o Google Chrome instalado.")
             return
         self._semear_perfil(nome)
         try:
@@ -323,13 +397,13 @@ class App:
                 LOGIN_URL,
             ])
         except Exception as e:
-            messagebox.showerror("Erro ao abrir", str(e))
+            avisar(self.root, "Erro ao abrir", str(e))
 
     def _remover(self, nome):
-        if not messagebox.askyesno(
-                "Remover perfil",
-                f"Remover '{nome}'?\n\nIsso APAGA o login salvo dele (vai "
-                "precisar logar de novo).\nFeche o navegador desse perfil antes."):
+        if not confirmar(
+                self.root, "Remover perfil",
+                f"Remover '{nome}'? Isso APAGA o login salvo dele (vai precisar "
+                "logar de novo). Feche o navegador desse perfil antes."):
             return
         if nome in self.contas:
             self.contas.remove(nome)
