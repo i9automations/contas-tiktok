@@ -9,6 +9,7 @@ Repo: https://github.com/i9automations/contas-tiktok
 
 import os
 import sys
+import time
 import urllib.request
 
 RAW_URL = ("https://raw.githubusercontent.com/i9automations/"
@@ -27,9 +28,11 @@ CACHE = os.path.join(BASE, "_cache_app.py")   # ultima versao baixada (fallback)
 
 
 def _baixar():
+    # ?t=<timestamp> fura o cache do CDN do GitHub (senao vinha versao velha)
+    url = RAW_URL + "?t=" + str(int(time.time()))
     req = urllib.request.Request(
-        RAW_URL, headers={"Cache-Control": "no-cache",
-                          "User-Agent": "ContasTikTok-Launcher"})
+        url, headers={"Cache-Control": "no-cache", "Pragma": "no-cache",
+                      "User-Agent": "ContasTikTok-Launcher"})
     with urllib.request.urlopen(req, timeout=12) as r:
         return r.read().decode("utf-8")
 
