@@ -1,18 +1,9 @@
 """
-CONTAS TIKTOK — gerenciador de perfis estilo Dolphin (simples, SEM proxy,
-SEM anti-deteccao). Cada "conta" e um PERFIL DO CHROME proprio:
-  - voce cria a conta (um nome de cliente),
-  - clica Abrir -> abre o Chrome NAQUELE perfil, na tela de login do TikTok Seller,
-  - voce loga UMA vez,
-  - fechou e abriu de novo -> continua logado naquele perfil.
+CONTAS TIKTOK — gerenciador de perfis (estilo Dolphin), simples, SEM proxy.
+Cada conta = um PERFIL DO CHROME proprio (cor + nome, igual o Dolphin mostra).
+Cria perfil -> Iniciar -> loga 1x -> fica logado pra sempre.
 
-Usa os PERFIS NATIVOS do Chrome (--profile-directory): cada cliente ganha uma
-COR e um NOME proprios, que aparecem no Chrome e na barra de tarefas (igual o
-Dolphin mostra os perfis coloridos). Cada janela e independente: pode fechar este
-gerenciador que os navegadores continuam abertos.
-
-⚠️ Sem proxy nem anti-deteccao: todas as contas parecem o MESMO aparelho/IP.
-O TikTok PODE relacionar elas. Veja o LEIA-ME.txt.
+⚠️ Sem proxy/anti-deteccao: as contas parecem o MESMO PC/IP. Veja o LEIA-ME.txt.
 """
 
 import os
@@ -24,29 +15,30 @@ import tkinter as tk
 from tkinter import ttk, simpledialog, messagebox
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
-CHROME_UDD = os.path.join(PASTA, "navegadores")   # pasta-mae dos perfis do Chrome
-REG = os.path.join(PASTA, "contas.json")           # lista de contas (clientes)
+CHROME_UDD = os.path.join(PASTA, "navegadores")
+REG = os.path.join(PASTA, "contas.json")
 LOGIN_URL = "https://seller-br.tiktok.com/account/login"
 
-# ---- tema escuro ----
-BG     = "#13151a"
-CARD   = "#1b1e26"
-HEADER = "#0c0d11"
-FG     = "#e6e9ef"
-MUTED  = "#8b93a7"
-CYAN   = "#25f4ee"
-PINK   = "#fe2c55"
-GREEN  = "#34d399"
-RED    = "#f87171"
-FONT   = "Segoe UI"
+# ---- tema escuro estilo Dolphin ----
+BG      = "#0f1318"   # fundo geral
+TOPBAR  = "#141922"   # barra de cima
+ROW     = "#161b22"   # linha
+ROWHOV  = "#1d2530"   # linha hover
+BORDER  = "#232a34"   # divisorias
+FG      = "#e9edf3"   # texto
+MUTED   = "#7d8794"   # texto apagado
+TEAL    = "#16c79a"   # acento (criar)
+GREEN   = "#21b87a"   # botao iniciar
+GREENH  = "#27d68f"
+REDX    = "#e5564e"
+CHIP    = "#222a36"   # fundo das tags/status
+FONT    = "Segoe UI"
 
-# cores giradas por conta (so pra bolinha do app — o Chrome usa as dele)
 CORES = ["#a78bfa", "#34d399", "#60a5fa", "#fbbf24", "#fb7185",
          "#22d3ee", "#f472b6", "#4ade80", "#818cf8", "#fca5a5"]
 
 
 def achar_chrome():
-    """Acha o Google Chrome instalado (locais comuns no Windows)."""
     cands = [
         os.path.join(os.environ.get("PROGRAMFILES", ""),
                      r"Google\Chrome\Application\chrome.exe"),
@@ -62,7 +54,6 @@ def achar_chrome():
 
 
 def _slug(nome):
-    """Nome de pasta seguro (tira so caracteres proibidos no Windows)."""
     return re.sub(r'[\\/:*?"<>|]', "", nome).strip() or "conta"
 
 
@@ -74,33 +65,54 @@ class App:
         self.contas = self._carregar()
         root.title("Contas TikTok")
         root.configure(bg=BG)
-        self._estilo()
 
-        head = tk.Frame(root, bg=HEADER)
-        head.pack(fill="x")
-        tk.Label(head, text="●", fg=CYAN, bg=HEADER,
-                 font=(FONT, 16)).pack(side="left", padx=(16, 6), pady=12)
-        tk.Label(head, text="Contas TikTok", fg=FG, bg=HEADER,
+        # ===== barra de cima =====
+        top = tk.Frame(root, bg=TOPBAR, height=58)
+        top.pack(fill="x")
+        top.pack_propagate(False)
+        logo = tk.Canvas(top, width=30, height=30, bg=TOPBAR,
+                         highlightthickness=0)
+        logo.create_oval(4, 4, 26, 26, fill=TEAL, outline="")
+        logo.create_text(15, 15, text="C", fill="#06231f",
+                         font=(FONT, 12, "bold"))
+        logo.pack(side="left", padx=(16, 8))
+        tk.Label(top, text="Contas TikTok", fg=FG, bg=TOPBAR,
                  font=(FONT, 15, "bold")).pack(side="left")
-        tk.Label(head, text="gerenciador de logins", fg=MUTED, bg=HEADER,
-                 font=(FONT, 11)).pack(side="left", padx=8)
 
-        body = tk.Frame(root, bg=BG)
-        body.pack(fill="both", expand=True, padx=16, pady=14)
+        self.btn_criar = tk.Button(top, text="+  Criar perfil",
+                                   command=self.nova, fg="#06231f", bg=TEAL,
+                                   activebackground=GREENH, activeforeground="#06231f",
+                                   font=(FONT, 10, "bold"), relief="flat", bd=0,
+                                   cursor="hand2", padx=16, pady=8)
+        self.btn_criar.pack(side="right", padx=16)
 
-        topo = tk.Frame(body, bg=BG)
-        topo.pack(fill="x", pady=(0, 10))
-        ttk.Button(topo, text="+ Nova conta", style="Cyan.TButton",
-                   command=self.nova).pack(side="left")
-        self.var_info = tk.StringVar()
-        tk.Label(topo, textvariable=self.var_info, fg=MUTED, bg=BG,
+        # busca
+        self.var_busca = tk.StringVar()
+        busca = tk.Entry(top, textvariable=self.var_busca, bg=BG, fg=FG,
+                         insertbackground=FG, relief="flat",
+                         font=(FONT, 10), width=22)
+        busca.pack(side="right", padx=8, ipady=6)
+        self.var_busca.trace_add("write", lambda *a: self._montar_lista())
+        tk.Label(top, text="Buscar:", fg=MUTED, bg=TOPBAR,
                  font=(FONT, 9)).pack(side="right")
 
-        container = tk.Frame(body, bg=BG)
-        container.pack(fill="both", expand=True)
-        self.canvas = tk.Canvas(container, bg=BG, highlightthickness=0)
-        sb = ttk.Scrollbar(container, orient="vertical",
-                           command=self.canvas.yview)
+        # ===== cabecalho da "tabela" =====
+        hd = tk.Frame(root, bg=BG)
+        hd.pack(fill="x", padx=16, pady=(14, 4))
+        tk.Label(hd, text="PERFIL", fg=MUTED, bg=BG,
+                 font=(FONT, 9, "bold")).pack(side="left")
+        self.var_info = tk.StringVar()
+        tk.Label(hd, textvariable=self.var_info, fg=MUTED, bg=BG,
+                 font=(FONT, 9)).pack(side="right")
+
+        # linha divisoria
+        tk.Frame(root, bg=BORDER, height=1).pack(fill="x", padx=16)
+
+        # ===== lista rolavel =====
+        cont = tk.Frame(root, bg=BG)
+        cont.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+        self.canvas = tk.Canvas(cont, bg=BG, highlightthickness=0)
+        sb = ttk.Scrollbar(cont, orient="vertical", command=self.canvas.yview)
         self.lista = tk.Frame(self.canvas, bg=BG)
         self._win = self.canvas.create_window((0, 0), window=self.lista,
                                               anchor="nw")
@@ -121,22 +133,7 @@ class App:
                 "Instale o Chrome (google.com/chrome) e abra de novo.")
         self._montar_lista()
 
-    def _estilo(self):
-        s = ttk.Style()
-        try:
-            s.theme_use("clam")
-        except Exception:
-            pass
-
-        def botao(nome, bg, fg, ativo):
-            s.configure(nome, background=bg, foreground=fg, borderwidth=0,
-                        focusthickness=0, font=(FONT, 10, "bold"),
-                        padding=(14, 8))
-            s.map(nome, background=[("active", ativo)])
-        botao("Cyan.TButton", CYAN, "#06231f", "#5ff7f1")
-        botao("Danger.TButton", CARD, RED, "#2a2f3a")
-
-    # ---------- registro de contas ----------
+    # ---------- registro ----------
     def _carregar(self):
         try:
             with open(REG, encoding="utf-8") as f:
@@ -155,35 +152,65 @@ class App:
     def _montar_lista(self):
         for w in self.lista.winfo_children():
             w.destroy()
-        self.var_info.set(f"{len(self.contas)} conta(s)")
+        filtro = self.var_busca.get().strip().lower()
+        visiveis = [n for n in self.contas if filtro in n.lower()]
+        self.var_info.set(f"{len(self.contas)} perfil(is)")
         if not self.contas:
-            tk.Label(self.lista,
-                     text="(nenhuma conta ainda — clique em '+ Nova conta')",
-                     fg=MUTED, bg=BG, font=(FONT, 11)).pack(pady=24)
+            self._vazio("Nenhum perfil ainda. Clique em '+ Criar perfil'.")
+            return
+        if not visiveis:
+            self._vazio("Nenhum perfil com esse nome.")
             return
         for i, nome in enumerate(self.contas):
-            self._linha(i, nome)
+            if nome in visiveis:
+                self._linha(i, nome)
+
+    def _vazio(self, txt):
+        tk.Label(self.lista, text=txt, fg=MUTED, bg=BG,
+                 font=(FONT, 11)).pack(pady=30)
 
     def _linha(self, i, nome):
         cor = CORES[i % len(CORES)]
-        row = tk.Frame(self.lista, bg=CARD)
-        row.pack(fill="x", pady=4)
-        # "bolinha" colorida com a inicial (combina com a cor do perfil)
+        row = tk.Frame(self.lista, bg=ROW, height=58)
+        row.pack(fill="x", pady=(0, 1))
+        row.pack_propagate(False)
+
+        def hover(_e, c):
+            row.configure(bg=c)
+            for w in row.winfo_children():
+                if isinstance(w, tk.Label):
+                    w.configure(bg=c)
+        row.bind("<Enter>", lambda e: hover(e, ROWHOV))
+        row.bind("<Leave>", lambda e: hover(e, ROW))
+
+        # bolinha colorida com a inicial (= cor do perfil)
         bol = tk.Label(row, text=nome[:1].upper(), fg="#0c0d11", bg=cor,
-                       font=(FONT, 12, "bold"), width=2)
-        bol.pack(side="left", padx=(12, 10), pady=10)
-        tk.Label(row, text=nome, fg=FG, bg=CARD,
+                       font=(FONT, 12, "bold"), width=3)
+        bol.pack(side="left", padx=(12, 12))
+        tk.Label(row, text=nome, fg=FG, bg=ROW,
                  font=(FONT, 12, "bold")).pack(side="left")
-        ttk.Button(row, text="Remover", style="Danger.TButton",
-                   command=lambda: self._remover(nome)).pack(side="right",
-                                                             padx=(4, 12))
-        ttk.Button(row, text="▶  Abrir", style="Cyan.TButton",
-                   command=lambda: self._abrir(nome)).pack(side="right", padx=4)
+
+        # acoes (direita)
+        rem = tk.Button(row, text="🗑", command=lambda: self._remover(nome),
+                        fg=MUTED, bg=ROW, activebackground=ROWHOV,
+                        activeforeground=REDX, relief="flat", bd=0,
+                        cursor="hand2", font=(FONT, 12))
+        rem.pack(side="right", padx=(4, 14))
+        ini = tk.Button(row, text="▶  Iniciar",
+                        command=lambda: self._abrir(nome),
+                        fg="#06231f", bg=GREEN, activebackground=GREENH,
+                        activeforeground="#06231f", relief="flat", bd=0,
+                        cursor="hand2", font=(FONT, 10, "bold"),
+                        padx=16, pady=6)
+        ini.pack(side="right", padx=4)
+        # chip "perfil" (estilo status do Dolphin)
+        tk.Label(row, text=" tiktok ", fg=MUTED, bg=CHIP,
+                 font=(FONT, 8, "bold")).pack(side="right", padx=8)
 
     # ---------- acoes ----------
     def nova(self):
         nome = simpledialog.askstring(
-            "Nova conta", "Nome do cliente (ex: Loja da Ana):",
+            "Novo perfil", "Nome do cliente (ex: Loja da Ana):",
             parent=self.root)
         if not nome:
             return
@@ -191,24 +218,17 @@ class App:
         if not nome:
             return
         if nome in self.contas:
-            messagebox.showinfo("Já existe", "Já tem uma conta com esse nome.")
+            messagebox.showinfo("Ja existe", "Ja tem um perfil com esse nome.")
             return
         self.contas.append(nome)
         self._salvar()
         self._semear_perfil(nome)
         self._montar_lista()
-        messagebox.showinfo(
-            "Conta criada",
-            f"Conta '{nome}' criada!\n\nClique em 'Abrir', faca o login no TikTok "
-            "(so dessa vez). Da proxima ja entra logado.\n\nDica: no Chrome, no "
-            "canto superior direito, da pra trocar a COR/foto desse perfil.")
 
     def _perfil_dir(self, nome):
         return os.path.join(CHROME_UDD, _slug(nome))
 
     def _semear_perfil(self, nome):
-        """Cria a pasta do perfil ja com o NOME do cliente, pro Chrome mostrar
-        o nome (e dar uma cor) automaticamente."""
         d = self._perfil_dir(nome)
         os.makedirs(d, exist_ok=True)
         prefs = os.path.join(d, "Preferences")
@@ -239,9 +259,9 @@ class App:
 
     def _remover(self, nome):
         if not messagebox.askyesno(
-                "Remover conta",
-                f"Remover '{nome}'?\n\nIsso APAGA o login salvo dela (vai "
-                "precisar logar de novo).\nFeche o navegador dessa conta antes."):
+                "Remover perfil",
+                f"Remover '{nome}'?\n\nIsso APAGA o login salvo dele (vai "
+                "precisar logar de novo).\nFeche o navegador desse perfil antes."):
             return
         if nome in self.contas:
             self.contas.remove(nome)
@@ -271,8 +291,8 @@ def main():
         dpi = root.winfo_fpixels("1i")
         root.tk.call("tk", "scaling", dpi / 72.0)
         f = dpi / 96.0
-        root.geometry(f"{int(560 * f)}x{int(560 * f)}")
-        root.minsize(int(460 * f), int(420 * f))
+        root.geometry(f"{int(720 * f)}x{int(620 * f)}")
+        root.minsize(int(560 * f), int(440 * f))
     except Exception:
         pass
     App(root)
