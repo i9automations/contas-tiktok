@@ -253,27 +253,11 @@ class App:
         tk.Label(hd, text="AÇÕES", fg=MUTED, bg=BAR,
                  font=(FONT, 9, "bold")).pack(side="right", padx=(0, 20))
 
-        cont = tk.Frame(main, bg=BG)
-        cont.pack(fill="both", expand=True, padx=22, pady=(0, 16))
-        self.canvas = tk.Canvas(cont, bg=BG, highlightthickness=0)
-        sb = ttk.Scrollbar(cont, orient="vertical", style="Dark.Vertical.TScrollbar",
-                           command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.lista = tk.Frame(self.canvas, bg=BG)
-        self._win = self.canvas.create_window((0, 0), window=self.lista,
-                                              anchor="nw")
-        # largura do conteudo acompanha o canvas; area de rolagem segue a lista
-        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig(
-            self._win, width=e.width))
-        self.lista.bind("<Configure>", lambda e: self.canvas.configure(
-            scrollregion=self.canvas.bbox("all")))
-        # roda do mouse so quando o cursor esta sobre a lista (evita eventos soltos)
-        self.canvas.bind("<Enter>", lambda e: self.canvas.bind_all(
-            "<MouseWheel>", self._wheel))
-        self.canvas.bind("<Leave>", lambda e: self.canvas.unbind_all(
-            "<MouseWheel>"))
+        # lista direta (sem canvas de rolagem -> nao flicka nem scrolla sozinho).
+        # os perfis ficam fixos no topo, empilhados.
+        self.lista = tk.Frame(main, bg=BG)
+        self.lista.pack(fill="both", expand=True, padx=22, pady=(0, 16),
+                        anchor="n")
 
         if not self.chrome:
             self.root.after(400, lambda: avisar(
@@ -325,9 +309,6 @@ class App:
             for i, nome in enumerate(self.contas):
                 if nome in visiveis:
                     self._linha(i, nome)
-
-    def _wheel(self, e):
-        self.canvas.yview_scroll(int(-e.delta / 120), "units")
 
     def _placeholder(self, txt):
         box = tk.Frame(self.lista, bg=BG)
