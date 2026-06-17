@@ -324,29 +324,18 @@ class App:
 
     def _on_canvas_config(self, e):
         self.canvas.itemconfig(self._win, width=e.width)
-        self._fit()
 
     def _on_lista_config(self, e):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        self._fit()
-
-    def _fit(self):
-        # se o conteudo cabe na area visivel, GRUDA no topo (sem scroll fantasma)
-        try:
-            box = self.canvas.bbox("all")
-            if not box:
-                return
-            alt_conteudo = box[3] - box[1]
-            if alt_conteudo <= self.canvas.winfo_height():
-                self.canvas.yview_moveto(0)
-        except Exception:
-            pass
 
     def _sync_scroll(self):
+        # chamado 1x apos montar a lista: fixa a area de rolagem e volta ao topo
         try:
-            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            self.canvas.update_idletasks()
+            box = self.canvas.bbox("all")
+            if box:
+                self.canvas.configure(scrollregion=box)
             self.canvas.yview_moveto(0)
-            self._fit()
         except Exception:
             pass
 
