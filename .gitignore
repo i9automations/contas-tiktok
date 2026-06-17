@@ -1,5 +1,6 @@
 # ===== NUNCA subir (seguranca / dados) =====
 navegadores/        # perfis do Chrome = LOGINS/COOKIES das contas (sensivel!)
+_ui_profile/        # perfil da janela do app (Chrome modo-app)
 perfis/             # (versao antiga) idem — logins
 chrome_profile/     # idem
 contas.json         # lista de clientes

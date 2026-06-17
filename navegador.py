@@ -1,43 +1,24 @@
 """
-CONTAS TIKTOK — gerenciador de perfis no LAYOUT do Dolphin (barra lateral +
-tabela de perfis). tkinter puro (sem instalar nada). Cada conta = um PERFIL do
-Chrome. Criar -> START -> loga 1x -> fica logado. SEM proxy (veja LEIA-ME.txt).
+CONTAS TIKTOK — gerenciador de perfis (estilo Dolphin), UI em HTML/CSS.
+Backend: Python PURO (http.server da biblioteca padrao, sem instalar nada).
+Frontend: pagina HTML/CSS/JS, aberta numa janela do Chrome em modo APP.
+Cada conta = um PERFIL do Chrome. Criar -> Iniciar -> loga 1x -> fica logado.
+SEM proxy/anti-deteccao (veja LEIA-ME.txt).
 """
 
 import os
 import re
 import json
 import shutil
+import threading
 import subprocess
-import tkinter as tk
-from tkinter import ttk
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
-CHROME_UDD = os.path.join(PASTA, "navegadores")
+CHROME_UDD = os.path.join(PASTA, "navegadores")      # perfis dos clientes
+UI_UDD = os.path.join(PASTA, "_ui_profile")          # perfil da janela do app
 REG = os.path.join(PASTA, "contas.json")
-ICONE = os.path.join(PASTA, "app.ico")
 LOGIN_URL = "https://seller-br.tiktok.com/account/login"
-
-# ---- paleta (estilo Dolphin: navy escuro) ----
-SIDE   = "#0d1219"
-BG     = "#121821"
-BAR    = "#0f151d"
-ROW    = "#1d2733"
-ROWH   = "#27333f"
-LINE   = "#2a3543"
-CHIP   = "#2b3744"
-FG     = "#e9eef5"
-MUTED  = "#7e8a99"
-TEAL   = "#19c39a"
-TEALH  = "#21d8ac"
-GREEN  = "#2ec27e"
-GREENH = "#39d491"
-TT_CY  = "#25f4ee"   # ciano do TikTok
-TT_PK  = "#fe2c55"   # rosa do TikTok
-FONT   = "Segoe UI"
-
-CORES = ["#a78bfa", "#34d399", "#60a5fa", "#fbbf24", "#fb7185",
-         "#22d3ee", "#f472b6", "#4ade80", "#818cf8", "#f0883e"]
 
 
 def achar_chrome():
@@ -55,417 +36,335 @@ def achar_chrome():
     return shutil.which("chrome") or shutil.which("chrome.exe")
 
 
+CHROME = achar_chrome()
+
+
 def _slug(nome):
     return re.sub(r'[\\/:*?"<>|]', "", nome).strip() or "conta"
 
 
-def _round_rect(cv, x1, y1, x2, y2, r, **kw):
-    pts = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2,
-           x2 - r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
-    return cv.create_polygon(pts, smooth=True, **kw)
+def carregar():
+    try:
+        with open(REG, encoding="utf-8") as f:
+            return json.load(f).get("contas", [])
+    except Exception:
+        return []
 
 
-class RoundBtn(tk.Canvas):
-    """Botao arredondado (preenchido ou contornado), com hover."""
+def salvar(contas):
+    try:
+        with open(REG, "w", encoding="utf-8") as f:
+            json.dump({"contas": contas}, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
-    def __init__(self, parent, text, command, w=110, h=34, r=9,
-                 fill=TEAL, hover=TEALH, fg="#06231f", pbg=ROW, size=11,
-                 contorno=None):
-        super().__init__(parent, width=w, height=h, bg=pbg,
-                         highlightthickness=0, cursor="hand2")
-        self._cmd = command
-        if contorno:
-            self._r = _round_rect(self, 2, 2, w - 2, h - 2, r, fill=pbg,
-                                  outline=contorno, width=2)
-            self._t = self.create_text(w // 2, h // 2, text=text,
-                                       fill=contorno,
-                                       font=(FONT, size, "bold"))
-            self.bind("<Enter>", lambda e: (
-                self.itemconfig(self._r, fill=contorno),
-                self.itemconfig(self._t, fill="#06231f")))
-            self.bind("<Leave>", lambda e: (
-                self.itemconfig(self._r, fill=pbg),
-                self.itemconfig(self._t, fill=contorno)))
+
+def semear(nome):
+    d = os.path.join(CHROME_UDD, _slug(nome))
+    os.makedirs(d, exist_ok=True)
+    prefs = os.path.join(d, "Preferences")
+    if not os.path.exists(prefs):
+        try:
+            with open(prefs, "w", encoding="utf-8") as f:
+                json.dump({"profile": {"name": nome}}, f)
+        except Exception:
+            pass
+
+
+def abrir_perfil(nome):
+    if not CHROME:
+        return False
+    semear(nome)
+    subprocess.Popen([
+        CHROME,
+        f"--user-data-dir={CHROME_UDD}",
+        f"--profile-directory={_slug(nome)}",
+        "--no-first-run", "--no-default-browser-check", LOGIN_URL,
+    ])
+    return True
+
+
+HTML = r"""<!doctype html>
+<html lang="pt-br"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contas TikTok</title>
+<style>
+:root{
+  --bg:#0e1217; --side:#0a0e13; --card:#19212c; --card2:#212c39;
+  --chip:#26333f; --fg:#eaeef4; --muted:#828d9c; --line:#222c38;
+  --teal:#16c79a; --tealh:#1ee0af; --green:#27c07e; --greenh:#31d68d;
+  --cy:#25f4ee; --pk:#fe2c55;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);
+  color:var(--fg);display:flex;overflow:hidden}
+::-webkit-scrollbar{width:10px}
+::-webkit-scrollbar-thumb{background:#2a3543;border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* sidebar */
+.side{width:230px;background:var(--side);height:100vh;flex-shrink:0;
+  padding:22px 16px;display:flex;flex-direction:column;border-right:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:26px;padding:0 6px}
+.logo{width:40px;height:40px;border-radius:11px;background:#0c0d11;
+  display:grid;place-items:center;position:relative;box-shadow:0 4px 14px #0008}
+.logo b{font-size:20px;color:#fff;position:relative;z-index:2}
+.logo .cy{position:absolute;color:var(--cy);transform:translate(2px,0);font-size:20px;font-weight:700}
+.logo .pk{position:absolute;color:var(--pk);transform:translate(-2px,0);font-size:20px;font-weight:700}
+.brand h1{font-size:17px;font-weight:700;letter-spacing:.2px}
+.btn-criar{width:100%;border:0;border-radius:11px;background:var(--teal);
+  color:#06231f;font-weight:700;font-size:14px;padding:12px;cursor:pointer;
+  transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-criar:hover{background:var(--tealh);transform:translateY(-1px)}
+.navit{display:flex;align-items:center;gap:10px;padding:11px 12px;margin-top:18px;
+  border-radius:10px;background:var(--card);font-weight:600;font-size:13px;
+  position:relative;color:var(--fg)}
+.navit::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;
+  background:var(--teal);border-radius:3px}
+.count{color:var(--muted);font-size:12px;margin-top:14px;padding-left:6px}
+.foot{margin-top:auto;color:#5d6775;font-size:10px;line-height:1.5}
+
+/* main */
+.main{flex:1;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.top{display:flex;align-items:center;gap:14px;padding:22px 26px 12px}
+.top h2{font-size:23px;font-weight:800;flex:1}
+.search{background:var(--card);border:1px solid var(--line);border-radius:11px;
+  color:var(--fg);padding:11px 14px;width:240px;font-size:13px;outline:none}
+.search::placeholder{color:var(--muted)}
+.search:focus{border-color:var(--teal)}
+.thead{display:flex;justify-content:space-between;color:var(--muted);
+  font-size:11px;font-weight:700;letter-spacing:.6px;padding:6px 30px;
+  border-bottom:1px solid var(--line)}
+.list{flex:1;overflow-y:auto;padding:14px 22px 22px}
+
+/* card */
+.card{display:flex;align-items:center;gap:14px;background:var(--card);
+  border-radius:15px;padding:12px 16px;margin-bottom:10px;
+  transition:.13s;border:1px solid transparent}
+.card:hover{background:var(--card2);transform:translateY(-1px);
+  border-color:#2f3b49;box-shadow:0 6px 18px #0006}
+.ava{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+  font-weight:800;color:#0c0d11;font-size:17px;flex-shrink:0}
+.nome{font-size:15px;font-weight:700;flex:1}
+.tag{background:var(--chip);color:#8fb7ff;font-size:11px;font-weight:700;
+  padding:5px 11px;border-radius:8px}
+.start{border:0;border-radius:10px;background:var(--green);color:#06231f;
+  font-weight:800;font-size:13px;padding:10px 18px;cursor:pointer;transition:.13s;
+  display:flex;align-items:center;gap:7px}
+.start:hover{background:var(--greenh)}
+.del{background:none;border:0;color:var(--muted);font-size:17px;cursor:pointer;
+  padding:8px;border-radius:9px;transition:.13s}
+.del:hover{color:var(--pk);background:#2a1820}
+
+/* vazio */
+.vazio{text-align:center;color:var(--muted);margin-top:80px}
+.vazio .ic{font-size:60px;opacity:.7}
+.vazio h3{color:var(--fg);font-size:18px;margin:10px 0 4px}
+
+/* modal */
+.ov{position:fixed;inset:0;background:#000a;display:none;place-items:center;z-index:9}
+.ov.on{display:grid}
+.modal{background:var(--card);border-radius:16px;padding:24px;width:380px;
+  box-shadow:0 20px 50px #000b;border:1px solid var(--line)}
+.modal h3{font-size:17px;margin-bottom:6px}
+.modal p{color:var(--muted);font-size:13px;margin-bottom:14px}
+.modal input{width:100%;background:#0b0f14;border:1px solid var(--line);
+  border-radius:10px;color:var(--fg);padding:12px;font-size:14px;outline:none}
+.modal input:focus{border-color:var(--teal)}
+.macts{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.bsec{background:var(--chip);color:var(--fg);border:0;border-radius:10px;
+  padding:10px 16px;font-weight:600;cursor:pointer}
+.bsec:hover{background:#313e4c}
+.bok{background:var(--teal);color:#06231f;border:0;border-radius:10px;
+  padding:10px 18px;font-weight:700;cursor:pointer}
+.bok:hover{background:var(--tealh)}
+</style></head>
+<body>
+  <aside class="side">
+    <div class="brand">
+      <div class="logo"><span class="cy">♪</span><span class="pk">♪</span><b>♪</b></div>
+      <h1>Contas TikTok</h1>
+    </div>
+    <button class="btn-criar" onclick="abrirModal()">+ &nbsp;Criar perfil</button>
+    <div class="navit">📁 &nbsp;Todos os perfis</div>
+    <div class="count" id="count">0 perfis</div>
+    <div class="foot">sem proxy · sem anti-detecção<br>simples e direto</div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <h2>Todos os perfis</h2>
+      <input class="search" id="busca" placeholder="🔎  Buscar perfil..."
+             oninput="render()">
+    </div>
+    <div class="thead"><span>PERFIL</span><span>AÇÕES</span></div>
+    <div class="list" id="list"></div>
+  </main>
+
+  <div class="ov" id="ov">
+    <div class="modal">
+      <h3 id="mtit">Novo perfil</h3>
+      <p id="mmsg">Nome do cliente (ex: Loja da Ana):</p>
+      <input id="mInput" autocomplete="off">
+      <div class="macts">
+        <button class="bsec" onclick="fecharModal()">Cancelar</button>
+        <button class="bok" id="mok">OK</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const CORES=["#a78bfa","#34d399","#60a5fa","#fbbf24","#fb7185","#22d3ee",
+             "#f472b6","#4ade80","#818cf8","#f0883e"];
+let CONTAS=[];
+
+async function api(p,body){
+  const o={method: body?'POST':'GET'};
+  if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}
+  const r=await fetch(p,o); return r.json();
+}
+async function load(){ CONTAS=(await api('/api/list')).contas||[]; render(); }
+
+function render(){
+  const f=(document.getElementById('busca').value||'').toLowerCase();
+  document.getElementById('count').textContent=CONTAS.length+' perfis';
+  const vis=CONTAS.filter(n=>n.toLowerCase().includes(f));
+  const L=document.getElementById('list');
+  if(!CONTAS.length){L.innerHTML=`<div class="vazio"><div class="ic">🗂️</div>
+    <h3>Nenhum perfil ainda</h3><div>Clique em “+ Criar perfil”.</div></div>`;return}
+  if(!vis.length){L.innerHTML=`<div class="vazio"><h3>Nada encontrado</h3></div>`;return}
+  L.innerHTML=vis.map(n=>{
+    const i=CONTAS.indexOf(n), c=CORES[i%CORES.length];
+    const ini=n.trim()[0].toUpperCase();
+    return `<div class="card">
+      <div class="ava" style="background:${c}">${ini}</div>
+      <div class="nome">${esc(n)}</div>
+      <span class="tag">TikTok Shop</span>
+      <button class="start" onclick="abrir('${esc(n)}')">▶ START</button>
+      <button class="del" title="Remover" onclick="remover('${esc(n)}')">🗑</button>
+    </div>`;}).join('');
+}
+function esc(s){return s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+
+async function abrir(n){ await api('/api/open',{nome:n}); }
+async function remover(n){
+  pedir("Remover perfil","Remover '"+n+"'? Isso apaga o login salvo dele.",async()=>{
+    await api('/api/delete',{nome:n}); load();
+  },"Remover");
+}
+function abrirModal(){
+  pedir("Novo perfil","Nome do cliente (ex: Loja da Ana):",async()=>{
+    const v=document.getElementById('mInput').value.trim();
+    if(!v) return;
+    const r=await api('/api/create',{nome:v});
+    if(r.erro){ alert(r.erro); return; }
+    load();
+  },"Criar");
+}
+let _cb=null;
+function pedir(tit,msg,cb,okTxt){
+  document.getElementById('mtit').textContent=tit;
+  document.getElementById('mmsg').textContent=msg;
+  document.getElementById('mok').textContent=okTxt||'OK';
+  const inp=document.getElementById('mInput');
+  inp.style.display=(tit==='Novo perfil')?'block':'none';
+  inp.value='';
+  document.getElementById('ov').classList.add('on');
+  setTimeout(()=>inp.focus(),50);
+  _cb=cb;
+}
+function fecharModal(){document.getElementById('ov').classList.remove('on');_cb=null;}
+document.getElementById('mok').onclick=()=>{const cb=_cb;fecharModal();if(cb)cb();};
+document.getElementById('mInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){const cb=_cb;fecharModal();if(cb)cb();}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharModal();});
+load();
+</script>
+</body></html>"""
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def _send(self, code, body, ctype="application/json"):
+        data = body.encode("utf-8") if isinstance(body, str) else body
+        self.send_response(code)
+        self.send_header("Content-Type", ctype + "; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        if self.path == "/" or self.path.startswith("/index"):
+            self._send(200, HTML, "text/html")
+        elif self.path == "/api/list":
+            self._send(200, json.dumps({"contas": carregar()}))
         else:
-            self._r = _round_rect(self, 1, 1, w - 1, h - 1, r, fill=fill,
-                                  outline="")
-            self.create_text(w // 2, h // 2, text=text, fill=fg,
-                             font=(FONT, size, "bold"))
-            self.bind("<Enter>", lambda e: self.itemconfig(self._r, fill=hover))
-            self.bind("<Leave>", lambda e: self.itemconfig(self._r, fill=fill))
-        self.bind("<Button-1>", lambda e: self._cmd())
+            self._send(404, "{}")
 
-
-class Dialogo(tk.Toplevel):
-    """Dialogo ESCURO no tema (substitui os popups brancos do tkinter).
-    modo: 'input' (texto), 'confirma' (Sim/Cancelar), 'info' (OK)."""
-
-    def __init__(self, parent, titulo, msg, modo="input"):
-        super().__init__(parent)
-        self.modo = modo
-        self.resultado = None
-        self.var = tk.StringVar()
-        self.title(titulo)
-        self.configure(bg=ROW)
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", 0))
         try:
-            if os.path.exists(ICONE):
-                self.iconbitmap(ICONE)
+            dados = json.loads(self.rfile.read(n) or "{}")
         except Exception:
-            pass
-        self.transient(parent)
-        self.resizable(False, False)
-
-        tk.Label(self, text=titulo, bg=ROW, fg=FG,
-                 font=(FONT, 14, "bold")).pack(anchor="w", padx=24, pady=(20, 4))
-        tk.Label(self, text=msg, bg=ROW, fg=MUTED, font=(FONT, 10),
-                 justify="left", wraplength=360).pack(anchor="w", padx=24)
-
-        if modo == "input":
-            cx = tk.Canvas(self, width=362, height=40, bg=ROW,
-                           highlightthickness=0)
-            _round_rect(cx, 1, 1, 361, 39, 9, fill=BAR, outline=LINE)
-            cx.pack(padx=24, pady=(14, 2))
-            ent = tk.Entry(cx, textvariable=self.var, bg=BAR, fg=FG,
-                           insertbackground=FG, relief="flat", font=(FONT, 12))
-            cx.create_window(182, 20, window=ent, width=332, height=24)
-            ent.focus_set()
-            ent.bind("<Return>", lambda e: self._ok())
-
-        bar = tk.Frame(self, bg=ROW)
-        bar.pack(fill="x", padx=24, pady=(16, 20))
-        ok_txt = "OK" if modo != "confirma" else "Sim"
-        RoundBtn(bar, ok_txt, self._ok, w=96, h=36, fill=TEAL, hover=TEALH,
-                 fg="#06231f", pbg=ROW).pack(side="right", padx=(8, 0))
-        if modo != "info":
-            RoundBtn(bar, "Cancelar", self._cancel, w=104, h=36, fill=CHIP,
-                     hover=ROWH, fg=FG, pbg=ROW).pack(side="right")
-
-        self.bind("<Escape>", lambda e: self._cancel())
-        self.protocol("WM_DELETE_WINDOW", self._cancel)
-        self.update_idletasks()
-        try:
-            w, h = self.winfo_reqwidth(), self.winfo_reqheight()
-            x = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
-            y = parent.winfo_rooty() + (parent.winfo_height() - h) // 3
-            self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
-        except Exception:
-            pass
-        self.grab_set()
-        self.wait_window()
-
-    def _ok(self):
-        self.resultado = self.var.get().strip() if self.modo == "input" else True
-        self.destroy()
-
-    def _cancel(self):
-        self.resultado = None if self.modo == "input" else False
-        self.destroy()
-
-
-def pedir_texto(parent, titulo, msg):
-    return Dialogo(parent, titulo, msg, "input").resultado
-
-
-def confirmar(parent, titulo, msg):
-    return bool(Dialogo(parent, titulo, msg, "confirma").resultado)
-
-
-def avisar(parent, titulo, msg):
-    Dialogo(parent, titulo, msg, "info")
-
-
-class App:
-    def __init__(self, root):
-        self.root = root
-        self.chrome = achar_chrome()
-        os.makedirs(CHROME_UDD, exist_ok=True)
-        self.contas = self._carregar()
-        root.title("Contas TikTok")
-        root.configure(bg=BG)
-        self._estilo()
-
-        # ===================== BARRA LATERAL =====================
-        side = tk.Frame(root, bg=SIDE, width=212)
-        side.pack(side="left", fill="y")
-        side.pack_propagate(False)
-
-        logo = tk.Frame(side, bg=SIDE)
-        logo.pack(fill="x", pady=(20, 24), padx=18)
-        lc = tk.Canvas(logo, width=36, height=36, bg=SIDE, highlightthickness=0)
-        lc.create_oval(1, 1, 35, 35, fill="#0c0d11", outline="")
-        # nota do TikTok com efeito glitch (ciano + rosa + branco)
-        lc.create_text(20, 18, text="♪", fill=TT_CY, font=(FONT, 17, "bold"))
-        lc.create_text(16, 18, text="♪", fill=TT_PK, font=(FONT, 17, "bold"))
-        lc.create_text(18, 18, text="♪", fill="#ffffff", font=(FONT, 17, "bold"))
-        lc.pack(side="left")
-        tk.Label(logo, text="TikTok", fg=FG, bg=SIDE,
-                 font=(FONT, 14, "bold")).pack(side="left", padx=8)
-
-        # botao CRIAR PERFIL (sempre visivel, mesmo com a janela estreita)
-        RoundBtn(side, "+  Criar perfil", self.nova, w=176, h=42, r=11,
-                 fill=TEAL, hover=TEALH, fg="#06231f", pbg=SIDE,
-                 size=12).pack(padx=18, pady=(0, 18))
-
-        item = tk.Frame(side, bg=ROW)
-        item.pack(fill="x", padx=10)
-        tk.Frame(item, bg=TEAL, width=3).pack(side="left", fill="y")
-        tk.Label(item, text="  📁  Todos os perfis", fg=FG, bg=ROW,
-                 font=(FONT, 11, "bold"), anchor="w").pack(side="left",
-                                                           fill="x", pady=10)
-        self.var_cont = tk.StringVar()
-        tk.Label(side, textvariable=self.var_cont, fg=MUTED, bg=SIDE,
-                 font=(FONT, 10), anchor="w").pack(fill="x", padx=24,
-                                                   pady=(14, 0))
-        tk.Label(side, text="sem proxy · sem anti-deteccao", fg=MUTED, bg=SIDE,
-                 font=(FONT, 8), wraplength=170, justify="left").pack(
-            side="bottom", anchor="w", padx=18, pady=16)
-
-        # ===================== AREA PRINCIPAL =====================
-        main = tk.Frame(root, bg=BG)
-        main.pack(side="left", fill="both", expand=True)
-
-        top = tk.Frame(main, bg=BG, height=70)
-        top.pack(fill="x", padx=22, pady=(18, 8))
-        top.pack_propagate(False)
-        tk.Label(top, text="Todos os perfis", fg=FG, bg=BG,
-                 font=(FONT, 18, "bold")).pack(side="left")
-        RoundBtn(top, "+  Criar perfil", self.nova, w=150, h=40, r=10,
-                 fill=TEAL, hover=TEALH, fg="#06231f", pbg=BG,
-                 size=12).pack(side="right")
-        cx = tk.Canvas(top, width=200, height=38, bg=BG, highlightthickness=0)
-        _round_rect(cx, 1, 1, 199, 37, 9, fill=BAR, outline=LINE)
-        cx.pack(side="right", padx=10)
-        self.var_busca = tk.StringVar()
-        ent = tk.Entry(cx, textvariable=self.var_busca, bg=BAR, fg=FG,
-                       insertbackground=FG, relief="flat", font=(FONT, 11))
-        cx.create_window(102, 19, window=ent, width=168, height=22)
-        self.var_busca.trace_add("write", lambda *a: self._montar_lista())
-
-        hd = tk.Frame(main, bg=BG, height=28)
-        hd.pack(fill="x", padx=24)
-        hd.pack_propagate(False)
-        tk.Label(hd, text="PERFIL", fg=MUTED, bg=BG,
-                 font=(FONT, 9, "bold")).pack(side="left")
-        tk.Label(hd, text="AÇÕES", fg=MUTED, bg=BG,
-                 font=(FONT, 9, "bold")).pack(side="right", padx=(0, 16))
-        tk.Frame(main, bg=LINE, height=1).pack(fill="x", padx=24, pady=(0, 4))
-
-        # lista direta (sem canvas de rolagem -> nao flicka nem scrolla sozinho).
-        # os perfis ficam fixos no topo, empilhados.
-        self.lista = tk.Frame(main, bg=BG)
-        self.lista.pack(fill="both", expand=True, padx=22, pady=(0, 16),
-                        anchor="n")
-
-        if not self.chrome:
-            self.root.after(400, lambda: avisar(
-                self.root, "Chrome não encontrado",
-                "Instale o Google Chrome (google.com/chrome) e abra de novo."))
-        self._montar_lista()
-
-    def _estilo(self):
-        try:
-            ttk.Style(self.root).theme_use("clam")
-        except Exception:
-            pass
-
-    # ---------- dados ----------
-    def _carregar(self):
-        try:
-            with open(REG, encoding="utf-8") as f:
-                return json.load(f).get("contas", [])
-        except Exception:
-            return []
-
-    def _salvar(self):
-        try:
-            with open(REG, "w", encoding="utf-8") as f:
-                json.dump({"contas": self.contas}, f, ensure_ascii=False,
-                          indent=2)
-        except Exception:
-            pass
-
-    def _montar_lista(self):
-        for w in self.lista.winfo_children():
-            w.destroy()
-        filtro = self.var_busca.get().strip().lower()
-        self.var_cont.set(f"{len(self.contas)} perfil(is)")
-        visiveis = [n for n in self.contas if filtro in n.lower()]
-        if not self.contas:
-            self._placeholder("Nenhum perfil ainda.  Clique em "
-                              "“+ Criar perfil”.")
-        elif not visiveis:
-            self._placeholder("Nenhum perfil com esse nome.")
-        else:
-            for i, nome in enumerate(self.contas):
-                if nome in visiveis:
-                    self._linha(i, nome)
-
-    def _placeholder(self, txt):
-        box = tk.Frame(self.lista, bg=BG)
-        box.pack(pady=(90, 0))
-        tk.Label(box, text="🗂️", fg=FG, bg=BG,
-                 font=(FONT, 44)).pack()
-        tk.Label(box, text=txt, fg=MUTED, bg=BG,
-                 font=(FONT, 12)).pack(pady=(6, 0))
-
-    def _linha(self, i, nome):
-        cor = CORES[i % len(CORES)]
-        cv = tk.Canvas(self.lista, height=68, bg=BG, highlightthickness=0)
-        cv.pack(fill="x", pady=5)
-        cv.card = None
-
-        def desenhar(w=None):
-            if w is None:
-                w = cv.winfo_width()
-            if w < 60:
-                return
-            cv.delete("all")
-            cv.card = _round_rect(cv, 1, 3, w - 1, 65, 16, fill=ROW,
-                                  outline="")
-            cv.create_text(28, 34, text="⊞", fill="#5b9bd5", font=(FONT, 13))
-            cv.create_text(52, 34, text="🌐", fill=MUTED, font=(FONT, 11))
-            cv.create_oval(70, 18, 102, 50, fill=cor, outline="")
-            cv.create_text(86, 34, text=nome[:1].upper(), fill="#0c0d11",
-                           font=(FONT, 14, "bold"))
-            cv.create_text(118, 34, text=nome, anchor="w", fill=FG,
-                           font=(FONT, 14, "bold"))
-            cv.create_text(w - 34, 34, text="🗑", fill=MUTED,
-                           font=(FONT, 13), tags="trash")
-            sx2, sx1 = w - 62, w - 62 - 122
-            cv.start = _round_rect(cv, sx1, 16, sx2, 52, 10, fill=GREEN,
-                                   outline="", tags="start")
-            cv.create_text((sx1 + sx2) // 2, 34, text="▶  START",
-                           fill="#06231f", font=(FONT, 11, "bold"),
-                           tags="start")
-            tx2 = sx1 - 18
-            tx1 = tx2 - 98
-            _round_rect(cv, tx1, 22, tx2, 46, 8, fill=CHIP, outline="")
-            cv.create_text((tx1 + tx2) // 2, 34, text="TikTok Shop",
-                           fill="#8fb7ff", font=(FONT, 9, "bold"))
-            # liga os cliques NOS itens recem-criados (senao o START nao clica)
-            cv.tag_bind("start", "<Button-1>", lambda e: self._abrir(nome))
-            cv.tag_bind("start", "<Enter>", lambda e: (
-                cv.itemconfig(cv.start, fill=GREENH),
-                cv.configure(cursor="hand2")))
-            cv.tag_bind("start", "<Leave>", lambda e: (
-                cv.itemconfig(cv.start, fill=GREEN), cv.configure(cursor="")))
-            cv.tag_bind("trash", "<Button-1>", lambda e: self._remover(nome))
-            cv.tag_bind("trash", "<Enter>",
-                        lambda e: cv.configure(cursor="hand2"))
-            cv.tag_bind("trash", "<Leave>", lambda e: cv.configure(cursor=""))
-
-        def hover(c):
-            if getattr(cv, "card", None) is not None:
-                cv.itemconfig(cv.card, fill=c)
-
-        cv.bind("<Configure>", lambda e: desenhar(e.width))
-        cv.bind("<Enter>", lambda e: hover(ROWH))
-        cv.bind("<Leave>", lambda e: hover(ROW))
-        cv.after(80, desenhar)        # desenho inicial garantido
-
-    # ---------- acoes ----------
-    def nova(self):
-        nome = pedir_texto(self.root, "Novo perfil",
-                           "Nome do cliente (ex: Loja da Ana):")
-        if not nome:
-            return
-        if nome in self.contas:
-            avisar(self.root, "Já existe", "Já tem um perfil com esse nome.")
-            return
-        self.contas.append(nome)
-        self._salvar()
-        self._semear_perfil(nome)
-        self._montar_lista()
-
-    def _perfil_dir(self, nome):
-        return os.path.join(CHROME_UDD, _slug(nome))
-
-    def _semear_perfil(self, nome):
-        d = self._perfil_dir(nome)
-        os.makedirs(d, exist_ok=True)
-        prefs = os.path.join(d, "Preferences")
-        if not os.path.exists(prefs):
+            dados = {}
+        nome = (dados.get("nome") or "").strip()
+        contas = carregar()
+        if self.path == "/api/create":
+            if not nome:
+                return self._send(200, json.dumps({"erro": "Nome vazio"}))
+            if nome in contas:
+                return self._send(200, json.dumps(
+                    {"erro": "Ja existe um perfil com esse nome."}))
+            contas.append(nome)
+            salvar(contas)
+            semear(nome)
+            self._send(200, json.dumps({"ok": True}))
+        elif self.path == "/api/open":
+            ok = abrir_perfil(nome)
+            self._send(200, json.dumps({"ok": ok}))
+        elif self.path == "/api/delete":
+            if nome in contas:
+                contas.remove(nome)
+                salvar(contas)
             try:
-                with open(prefs, "w", encoding="utf-8") as f:
-                    json.dump({"profile": {"name": nome}}, f)
+                shutil.rmtree(os.path.join(CHROME_UDD, _slug(nome)),
+                              ignore_errors=True)
             except Exception:
                 pass
-
-    def _abrir(self, nome):
-        if not self.chrome:
-            avisar(self.root, "Chrome não encontrado",
-                   "Não achei o Google Chrome instalado.")
-            return
-        self._semear_perfil(nome)
-        try:
-            subprocess.Popen([
-                self.chrome,
-                f"--user-data-dir={CHROME_UDD}",
-                f"--profile-directory={_slug(nome)}",
-                "--no-first-run",
-                "--no-default-browser-check",
-                LOGIN_URL,
-            ])
-        except Exception as e:
-            avisar(self.root, "Erro ao abrir", str(e))
-
-    def _remover(self, nome):
-        if not confirmar(
-                self.root, "Remover perfil",
-                f"Remover '{nome}'? Isso APAGA o login salvo dele (vai precisar "
-                "logar de novo). Feche o navegador desse perfil antes."):
-            return
-        if nome in self.contas:
-            self.contas.remove(nome)
-            self._salvar()
-        try:
-            shutil.rmtree(self._perfil_dir(nome), ignore_errors=True)
-        except Exception:
-            pass
-        self._montar_lista()
-
-
-def _corrigir_dpi():
-    try:
-        import ctypes
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except Exception:
-        try:
-            ctypes.windll.user32.SetProcessDPIAware()
-        except Exception:
-            pass
-
-
-def _maximizar(root):
-    try:
-        root.state("zoomed")                       # maximizado (com barra)
-    except Exception:
-        try:
-            root.geometry(f"{root.winfo_screenwidth()}x"
-                          f"{root.winfo_screenheight()}+0+0")
-        except Exception:
-            pass
+            self._send(200, json.dumps({"ok": True}))
+        else:
+            self._send(404, "{}")
 
 
 def main():
-    _corrigir_dpi()
-    root = tk.Tk()
-    try:                                  # icone proprio (tira a pena do Python)
-        if os.path.exists(ICONE):
-            root.iconbitmap(ICONE)
-    except Exception:
-        pass
+    os.makedirs(CHROME_UDD, exist_ok=True)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{port}/"
+
+    if CHROME:
+        proc = subprocess.Popen([
+            CHROME, f"--app={url}", f"--user-data-dir={UI_UDD}",
+            "--no-first-run", "--no-default-browser-check",
+            "--window-size=1120,720",
+        ])
+        proc.wait()                 # bloqueia ate fechar a janela do app
+    else:
+        import webbrowser
+        webbrowser.open(url)        # sem Chrome: abre no navegador padrao
+        try:
+            input()
+        except Exception:
+            threading.Event().wait()
     try:
-        dpi = root.winfo_fpixels("1i")
-        root.tk.call("tk", "scaling", dpi / 72.0)
-        f = dpi / 96.0
-        root.geometry(f"{int(1000 * f)}x{int(640 * f)}")
-        root.minsize(int(820 * f), int(480 * f))
+        server.shutdown()
     except Exception:
         pass
-    App(root)
-    root.after(80, lambda: _maximizar(root))   # maximiza apos montar a janela
-    root.mainloop()
 
 
 if __name__ == "__main__":
