@@ -1,0 +1,67 @@
+CONTAS TIKTOK — gerenciador de logins (estilo Dolphin, simples)
+================================================================
+
+O QUE É
+-------
+Um jeito simples de ter VÁRIAS contas do TikTok, cada uma num navegador
+separado, com o login SALVO. Igual o Dolphin, mas sem proxy e sem complicação.
+
+Cada conta vira um PERFIL DO CHROME próprio — com COR e NOME, que aparecem no
+Chrome e na barra de tarefas (pra você diferenciar as janelas, igual o Dolphin).
+
+COMO ABRIR O APP
+----------------
+- Dois cliques no  "Contas TikTok.exe"   (o app de verdade — sem terminal).
+  (Se preferir, o ABRIR.bat também funciona.)
+
+COMO USAR
+---------
+1. Abra o app.
+2. "+ Nova conta"  -> digite o nome do cliente (ex: Loja da Ana).
+3. Na conta, clique "▶ Abrir"  -> abre o Chrome naquele perfil, na tela de login
+   do TikTok Seller.
+4. Faça o login NESSA conta (só na primeira vez).
+5. Pode fechar o navegador e o app. Quando abrir essa conta de novo, ela JÁ
+   ESTÁ LOGADA. Cada conta lembra o seu login.
+
+Pode abrir várias contas ao mesmo tempo (cada uma é uma janela do Chrome, com
+sua cor/nome). Fechar o app NÃO fecha os navegadores já abertos.
+
+COR / FOTO DO PERFIL (deixar com a sua cara)
+--------------------------------------------
+O Chrome já dá uma cor diferente pra cada conta. Pra trocar a cor ou pôr uma
+foto: no Chrome, canto superior direito, clique no perfil -> "Personalizar perfil"
+-> escolha cor/foto. Fica salvo e aparece na barra de tarefas.
+
+ONDE FICA O LOGIN
+-----------------
+- A lista de contas: arquivo  contas.json
+- Os logins (perfis do Chrome): pasta  navegadores\
+Apagar uma conta no app (botão "Remover") apaga o perfil dela (precisa relogar).
+Feche o navegador da conta antes de remover.
+
+PRECISA
+-------
+- Google Chrome instalado (google.com/chrome).
+- (Só pra editar/gerar o app de novo: Python. Pra USAR o .exe, não precisa.)
+
+ARQUIVOS
+--------
+- Contas TikTok.exe   -> o app (dois cliques)
+- navegador.py        -> o código (caso queira editar)
+- ABRIR.bat           -> abre pelo Python (alternativa ao .exe)
+- app.ico             -> ícone do app
+- contas.json         -> suas contas
+- navegadores\        -> os perfis/logins do Chrome
+- build_tmp\          -> lixo da geração do .exe (pode apagar)
+
+⚠️ IMPORTANTE — LEIA
+--------------------
+Este programa NÃO usa proxy nem anti-detecção. Todas as contas usam o MESMO
+computador e a MESMA internet (mesmo IP). Para o TikTok, elas parecem o MESMO
+aparelho — ele PODE relacionar as contas entre si. O Dolphin existe pra esconder
+isso. Aqui a vantagem é simplicidade e navegar sem o proxy quebrando o TikTok.
+
+Para uma EQUIPE acessar a mesma loja, o jeito certo (e dentro da política do
+TikTok) é o "User Management" no Seller Center: cada funcionário com seu próprio
+login na loja. Este app só evita ficar relogando/trocando de conta.

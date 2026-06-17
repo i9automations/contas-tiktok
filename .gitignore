@@ -1,0 +1,14 @@
+# ===== NUNCA subir (seguranca / dados) =====
+navegadores/        # perfis do Chrome = LOGINS/COOKIES das contas (sensivel!)
+perfis/             # (versao antiga) idem — logins
+chrome_profile/     # idem
+contas.json         # lista de clientes
+_cache_app.py       # cache baixado pelo launcher
+
+# ===== gerados (nao versionar) =====
+build_tmp/
+dist/
+build/
+*.spec
+__pycache__/
+*.exe
