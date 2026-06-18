@@ -44,11 +44,19 @@ def _slug(nome):
 
 
 def carregar():
+    """Devolve lista de {nome, tags}. Migra o formato antigo (lista de nomes)."""
     try:
         with open(REG, encoding="utf-8") as f:
-            return json.load(f).get("contas", [])
+            dados = json.load(f).get("contas", [])
     except Exception:
         return []
+    out = []
+    for c in dados:
+        if isinstance(c, str):
+            out.append({"nome": c, "tags": []})
+        elif isinstance(c, dict) and c.get("nome"):
+            out.append({"nome": c["nome"], "tags": list(c.get("tags") or [])})
+    return out
 
 
 def salvar(contas):
@@ -57,6 +65,22 @@ def salvar(contas):
             json.dump({"contas": contas}, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+
+
+def _idx(contas, nome):
+    for k, c in enumerate(contas):
+        if c["nome"] == nome:
+            return k
+    return -1
+
+
+def _todas_tags(contas):
+    t = []
+    for c in contas:
+        for tg in c.get("tags", []):
+            if tg not in t:
+                t.append(tg)
+    return sorted(t)
 
 
 def semear(nome):
@@ -112,12 +136,17 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .btn-criar{width:100%;border:0;border-radius:10px;cursor:pointer;color:#fff;
   background:var(--pk);font-weight:700;font-size:14px;padding:13px;transition:.13s}
 .btn-criar:hover{background:var(--pkd)}
-.navit{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-top:22px;
-  border-radius:10px;font-weight:600;font-size:13px;position:relative;color:var(--fg);
-  background:rgba(254,44,85,.10);border:1px solid rgba(254,44,85,.18)}
-.navit::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;
-  background:var(--pk);border-radius:0 3px 3px 0}
-.count{color:var(--muted);font-size:12px;margin-top:16px;padding-left:8px}
+.navit{display:flex;align-items:center;gap:10px;padding:11px 14px;margin-top:20px;
+  border-radius:10px;font-weight:600;font-size:13px;color:var(--muted);cursor:pointer;transition:.12s}
+.navit:hover{background:rgba(255,255,255,.04);color:var(--fg)}
+.navit.on{background:rgba(254,44,85,.12);color:#fff}
+.tagnav{display:flex;flex-direction:column;gap:2px;margin-top:4px;overflow-y:auto}
+.tagit{display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:9px;
+  font-size:12.5px;color:var(--muted);cursor:pointer;transition:.12s}
+.tagit:hover{background:rgba(255,255,255,.04);color:var(--fg)}
+.tagit.on{background:rgba(254,44,85,.12);color:#fff}
+.tagit .dt{width:7px;height:7px;border-radius:50%;background:var(--cy);flex-shrink:0}
+.count{color:var(--muted);font-size:12px;margin-top:14px;padding-left:8px}
 .foot{margin-top:auto;color:#5a6573;font-size:11px;letter-spacing:.3px;padding:0 8px;font-weight:600}
 
 .main{flex:1;height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -147,6 +176,13 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .del{background:none;border:0;color:var(--muted);cursor:pointer;display:grid;
   place-items:center;width:38px;height:38px;border-radius:9px;transition:.13s}
 .del:hover{color:var(--pk);background:rgba(254,44,85,.12)}
+.edit{background:none;border:0;color:var(--muted);cursor:pointer;display:grid;
+  place-items:center;width:36px;height:36px;border-radius:9px;transition:.13s}
+.edit:hover{color:var(--cy);background:rgba(37,244,238,.10)}
+.cardtags{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.t2{background:var(--chip);color:#9fb3c9;font-size:10.5px;font-weight:700;
+  padding:3px 9px;border-radius:20px;border:1px solid var(--line)}
+.modal label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;font-weight:600}
 
 .vazio{text-align:center;color:var(--muted);margin-top:90px}
 .vazio .ic{opacity:.5}
@@ -176,8 +212,9 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
       <div class="logo"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAczElEQVR4nO1dCXhVRZauqru8PS8hycsCJCEJgRCWsCtkZBmwEXSIrAYUl3ZtbBtpQbFdaFtbEWbaxnbpcfwYaeVTsIXmUxGNKDsCQkDCEiAQtpB9eevdquare18eAV5C8pZszP+9L4S8u9X5q06dOufUuXDp0qWg44FpAEJIURRBEBwOh91ur66uttvtbre7rq7O7Xb7DrZYLGaz2Wg0RqqwWCxGo5HjOAAAxliWZUVRCCGg4wF2zMcSRfH8+fMnTpw4fvz4yZMnz58/X1paWldXV19fL0mSoiiaTH3HsyoYhjEajRaLxWazJSYmpqSk9O3bNzMzMzU1NSYmBnRIdCAC6urqCgsLd+7cuWvXrl9++eXSpUu+Ph4MIITR0dHp6elDhw7NyckZPnx4amoqhBB0DLQ/AaWlpdu3b//666+3b99eUlLSuF9r4vN7VsCPHRERkZ2dPWHChEmTJg0aNIjneXBzEmC323/44Yd169bl5+dfvny57R+A5/mBAwfm5uZOmzYtMzMTtBdIm6OoqGjp0qXt2earYTabc3NzN2zY4HK52l4abUrA/v37f/3rX0dGRoIOicGDB7///vs1NTVdkIB9+/bl5eUZjUbQ4ZGRkfHWW2/V1tZ2EQKKiooefvjhTiH6xujfv/9HH30kimInJqCuru61117rsAZ4SzBu3Lht27Z1SgK++eabIUOGgM4PvV6/YMGC8vLyTkNAVVXVb3/7W80N0GXQr1+/r7/+uhMQsG3btsGDB4OuCI7jFi9ebLfbOygBiqL85S9/MZvNoEvjtttuKyws7HAEVFdXz5s3D9wcSEhI2LBhQwci4OTJk6NGjQI3E3Q63YoVKzoEAXv27ElLSwM3JRYsWCAIQnsSsHnz5vj4eHATY86cOUFOy4ET8MUXX1gslvaWQPvj7rvvrq+vb2sC/l/6jTF16tSAOQgkHrBp06bZs2fb7XbQAQA5HplMkAZuYLMtoa3FDjuR5XA8xvTp01evXh2Ay6vVBOzZs2fq1Knl5eWgY8A09nb9gkVYlqj4m2kKZYg4X3rWc+yXMD3Jgw8++MEHHzAM06qz2FYdXVRUlJeX13GkT6HT41gbFgREQLNxXkgQPRiEDatWrbLZbG+88Ua4CKiqqrrvvvvOnj0LOhQIAYqCFAUSgAEQlaZHAceKRlOYngJCqkuWL1+empr66KOPhp4AWZaffPLJvXv3ancCHQqEfjABUSzzUFKsgUHA72BgWTF7LDlQQ906AHwlntsqhGwoazLBGP/+979PT08fP358iAlYvnz5p59+2nGyORqDPhQECiaxOvRCRgKArH8CAFLGT3StOYZ4xoBQDXRtFcubmzYCgsPheOSRR3744YekpKSWHI9aclB+fv4rr7wCOiyI918FADdBgH7gtR9MKZGyUzxWvUdRPJgAiABsftoIEMXFxfPnzxdFMTQElJWVzZ8/3+Px+FIoAOh4GojQX5A6GOgPvx8A+OQ4OKgXkKglmoiMgIR8AHjx5Zdfrly5MjQELFmypKioqGMqn2vRvDgJgCyjzx1Fp20A0hgLCmejXn311f379wdLwBdffLF69WrQeUCa+kIVNQRAf9dIkJ4gy1IqiohhdGHRQSrq6uoWLlx4w+zK5gioqqpasmSJlivYATVPq6HKmo2J4O6fIMlyPDSMZLtpFqQGEGps37793XffDZyAZcuWFRUVgS4GAizzJoDsNCTId+qTwjcCNCxbtuzUqVOBEHDo0KH3338fdD0QgqJMlpfvk/XceDYhiTOGbSamqKioaN6A9E8AIeRPf/qT3W7vHHNvqwBp63TjBzCLZsQL3IO6sEeT1q5du2PHjtYR8OOPP27cuBF0TUBN35ueugs8NPFektyLpYOAhK2nCYLw6quvXpN23xwBGOM333xTkqQuMvc2YQ4BltG9Ma/7g/+xmM1UPanhaimE8LvvvsvPz28pAVu3bm3q6K4ECACj47kVD9235Jl7jSnhnAhon16xYoXfQXAtAYSQlStXyrLcBbX/1VAdSABxjOnFe/5zzT9GpfUF4cTWrVt37tx5YwIKCgo2b94MbgLAhg8AIHZqzpot3wy7dy4wGBv1O+rBaHQgvB4tuZGmxiVJeu+9925MwIcffuh2u7t89/ehoZ0kOSn581WrJ67+DN19D5vQXfVo05C519nd+NhA8dVXX504caI5d3RZWdn69evBTQhChZvMorXTpjyXNfAfR4vIsaOwcL988gS+XIrr66EsY0EAxL8l00LY7fY1a9b88Y9/bJKAL7/88tKlS13T+GkeaucmhEQi+F5mjxyrflli3KnRow1YQnY7cDohwa73/+rZuS1I3bBu3brFixebTCY/KghjvHbtWnBzg9A8EXhvou27wRkv9YjtzvFuS5QrroeUkkaiooK//vHjx69ZlF0hoKioaPfu3cHfo7ODqD/j9bolvZO2jOz/9z5JkyMtNsgA7HVKaulUAV6ckH/+85/+VdDmzZs138NNp38acL16idPx83rY5vWILRflA8kji02XLzBCheI5hKv3CdXN5yE1hfz8/NraWt9WUS8BhJBNmzYFcr2bAtDGc2MMkWOYVGLg9JB5Tzy6T6hS9UerSTh79uzevXtvv/32q1TQ+fPnWxK+uZkhEOwmsotIbiLJVAkxNPjcetuUEPLtt9/6/uslYO/evVVVVTej/dMKNFY5EBCsJiIFIq5t27ZprrYrBGzfvh3cBCBBnAuJtlrQLgSDudixY8d8+W2UAEVRfvrpJ9DloWD3h99JFyobUrlaB+jnfwFy4HA4Dhw4cIWAS5cuNR826yJgkPTx93W/esH52VYi0RTGoLVt4BfYu3fvFSvo+PHj2gTQvoBagyBCJjPS66DeABCkf/II2ONWHI4gPQF0DBg4fOay59G3PZ9utSy4mxszIDRentbj0KFDdNEHaRYfOHr0KGhXIJ2e65XGZPbj09JJzyTUzcboDZDnCaR2nixLxOlwvbhEOnsyBDfjEOEZ5ceC07v2dR833DjvDjR2IDTqru3TYebk1KlTdXV1kZGR7UkAhAzfJ1M3Zhw7/BbcvScymmirMQaKuuBULTJC8wcZZIlCamZ5UKrXe1eqd006/X+6jl/64sDL3+9OyuovTxnJThrGZfRAuqucYyRsRJSXl1+8eJESQAhp+wkAQagbMcqQOwtlDyFGM1FkpChAEL0KQV3py4QohGAFEKhARRYITbUMlY0MAZAh/ES6tLO27ukD5bMLiiPf/treJxHe0ocf3gf068HHRwGz4Srp06TrkMHtdp85cyYrK4t1OByaB7RtAAFgM/sZ732YGz5K4XksS0CgWacaJAAkTBAhRpZL5fkUA9fbwCfoeQML3bbBcqlRQKQeSF+6zx+T6hu6aIAmIaNOOGdl1+/sB/7BlzyO+kw6WB+596Sb/UqxGFCcWe5pM8R2Y+IiQTcT4Vn5aAlgQ8nBmTNn6CRcU1NTXV0N2gRIpzfPnAPy5kKdFSsyFAXfVzIGEiHxPHtLN9PE2MjhkRHJBr2Fa1AIhLj1vTArAZ7VQ86pCF4CggakEz3eL1Y9LO0awEXOM6RNZLqnuhj2ZJV4vEwkCoYKgurkz/OAY0MYOr5w4QIloKKiwuFwgPCDS0yIePpFMmKkIopAFmnDVUiY6voBZsOcxLg74yOSjTpIbTO1oZj+IAhgBbvpBgCqjwiASigj6HRO0MbQL2LtIvHnbszhHD7uV3z3obytFzIZqY9OwZAufOm0BFAg/gd/0EoVsmVlZVrqeVjBZ/WPeP6PoGca9rhp9j6iy3qFEAmTASbzkylxdydEm1lWnYK9mkVNNG8kIV8Yt2nc6Hs/IFf/AABUK9JGz4WN7gtmhk1nLP35yCzW2puJSGCMEYTTQ9YKOTekjxnUathHQG1tLdZaHR5AAPjswaaXXgdRcYBKn2aJU98WBlbEPNUr9tFeid14XUNTaP+66uTWIRCBXH8OUn0ODkUuUGoKpBr1L0DHID1kDQSZEVtH5OAHgdPpVBSFra8PjTJtClz2YMPLr2NrDBBFNR+fevsEBQ8xG5dn9rol2koVDe0B3j0UQSIwH71fUAOY0qNu/oLAjbEbiJQNfCVjIhjXZVVVlcfjYQXhykwYcrA9e+qee4lYoxHdlAIx1eBAUJTptuj/6t8rRqdVrUUt2yh1A4TQZseNR0UTIg7ekyEIgizLdB0AwgNkNBkX/QHFJxPKsdabgCTj+cnxr2Ym86h1G5q7HrTgYygN22tguu8hLvtWIEqQehRo3xcV/Luk2Nf7pYRN+hB0HmhdPywEQAB0gwbrcmcRwYMARlSFEjeW5/WIXtovjYEotMOONGyEbNDMnQlhIQBxnPH+h4neCBvsKw/GE7qZl2WmsOjGQX/S8LkScGKYFkzR6izQ2QJ6rasV0RLQjXA549jBI3DDRlmZgJ6c/q2s3haWu6H05fJaseCUUlAsXawBogwNPN89Bmb1BG4hJGbSdWg3xrTsUjb0RYU5nT53ptKwCZoASBTyUmZimsmgecD9nkQAEI9fFD74Rtz0E7pcRf1wDd3ZDQjgIWRZwHJqL/e7FFWdnK0GXQ6CdoLBYOA4jg151SvdoKGkX3/QUJZHwModMdbZ3WOpMU1ldy0wAERSHO98Kfz1X0xFHeQRYRnAafV/qKDV7AOsOSEax2V90I7EENHqR51nCoiKitLpdGx0dDTLsnLoyhjpxk8gPA8F1XtMQCSCS3r3YBDyKzsCALa7HAv/W1q7k2EhMHI+fzQLIIsYBZBK4KkBHoFgjsBIxCciM3P1heiEQU0672wMOgnMZjPDMGxcXJxerw+VP46xWtnsoYqsaCISFTwjIWpopJVqouuUDwEAi1LtwvfApzuhgVP5oeJjCdRB5iJx/0s4951QekyqrcGiDDALgBlyqVxEOb5u93PgYkfepW2bIzExkTY2NjY2IiIiVATwfbNIfAKQ1TRKAHQMeKBnHP3Cn2aAALj+uhF8thsa9BASrAqCB8iNlHeEE393FJ2XXVcOVa9gJ0KpUNHEKri94rsBIiEhgRIQGRkZFRUVqpgM038QYTko08W8SMDoSPOwqCbflyEeOiuv/AryXMN0C3UAlUDn7+x7t3guA0y9MT61dbX11Gn0TDPQ6tkgo9HYo0ePEF0Tot6Z1HGu2iQKgXfFxfBX+zd9IAC4/74J1Dpoip8qXh6wx0D9jJoft7gua30aN6rpCK76NPbFaOWCOh9SUlK8C7E+ffqE5IrIYCDxCSoBVJtEsWh8dERT/VU+X47zDwDe65NgASyHnkdqd54Q671zQct6eSfTOw0wmUxXCOjXr19ILoosVmSNhJgyIBHcz2DIMBma8lLKPx0D5TWQUfsvASxErzkPHhZrA4hyNEzenQkJCQla0WFKQFZWVmuLLfoFYzbTbCptUyAgfa0GFjFNdU7l0Bm6KUf9VgeZn5SKT900SH2TICMjIyIiwktARkZGbGxs8BclLEsa3JyIkP7m5mpE4ks16ppW7bsIrnKf9GCCQhOV6QTwveaCiiAmJiYjIyP4ixKG0Yx9OqMimGFqjgBZVqiPFAIGwMvEtVUoDTTK0YozqH7rGATfcsstVwhACIXkBQCQyEyDtcggGKVr9jUyao4NpCtedBTXXVICTQxgW/yyGkIA1Xm+YhHtBqvVOnDgQO13r4142223hWBztiwTrNAWEmAEyMw052rlE7shOgZoltx5ya6aToGAiYulfogWxIKJpACn6G1ku07aAwYM8Jn+3tjI0KFDg38TAHE6ieDRgtUGgAz+XG8+oEGpCk1zohzUympcusHKbzkYCFHfvpBgNRpzA48CdkuKvUMUARg/fjxqWB6p0yAhNpvt1ltvDfK62G4HDnWfpeozbsi88g9ueF8cGwFUm1UONJcBxdpQRl+iyN4u3TTl9OtaB6h3+h6rvcYAwzC+HXpXRcSmTJkS5KWJ0wVLL0GGNtENZKHZLskl29C4bCxKAJAopiE7vJXQ5YxF3eKImtVCCIpmENvEwpt6Ps6VkXqHlnlEIHAR7y6tNkZGRkZ2drbvv8hX9WPChAnR0dHBXBoTLJ8+rjDUgy8Q4GiiRpQPlsfuIhEGgnEKG9Gsumqi2o8lwjBlBlEAIgiqceZkgw41fSH5lxIkeiNChMB6LwFtPRLuuOMO/6UKkpKSxo4dG+TVpaOHkSIRCBQFVwrNdjECdEPSuPl3SYLQD0UmoFYUlteUiGnuA0rv3kCimaJq/AyM6tZkcAkCoOw5oUmf/g7Ixet92uEHy7LTpk1r/Jer+ss999wT5A3Eo0dgZRlmkUBIsevGLTQvmK7MzLF50L/z1DneQhAADLdP4qbdS0RJ3cdB3a89OGZCN9X15A9KebVy4ATgVNsXAAeULioNvu42RHZ29rBhw5okYOLEienp6cHcQKmqkg4XAI6TISx0OG9cRlXPR771BJqRcz9Iavk8YJj0K92CJTKEAMuq/UMEjGfEdUtsOr4t7iyEFysASy00BoIy4r4se9peBc2ZM0en0zVJgNVqDXYQECBs+ZaRZRbCghq3TG4cbGLNeuO7T+S89Js5NuoT9KvCffYUskZFzH/K9MwrhDdB4o27SYT00nOP9Ypvan1FCHCv3+OzcFnAFMp1dtzWk3BsbOzMmTOv+eO17Z03b57mJAoMCAD55/3K6RMcx512eUpcLUo8RTpO9+zMP29ZP2z2TBwV7VeKbEyM+T9mRL/1P7pZD2CgBtBUcWM1HPxy3+5J1PPh35chH71AthYS3rcwhDsEmhrexpgxY8b1oZdrF6u9e/eePn36qlWrArsHzU7wuMV//dP4zItVivhjVVWaqaXRnvisjE9WfzTvmx0H9x/gzhaRy5ewWwB6AxMfz/Xuw/TtD+PiMSFAFCFRcyYIUAjCWH4hLX52QlwzoQHnqm+V2jqk57VczCoobpXKQNvCYDA89thj1//dT55aQUHB6NGjXa5A5ij1XUUEmkyW/3pb7J050aJfP2yQlud9YxAqvWK3MP/oua319SwkLDUaIUEIEwxkmcHYu46lngfkUbCVQS+mJzxBlY9WuMRPcMxdWGKf8hLjdBF1BWCAzLdy6cyaH5W2DcXn5eWtWbPm+swoPyo3Ozv7GlOpdYCQOJ3i/67SY7K71llQU9vyUwkBqQbduoEpLyZ2i1Ekp+D2eDyy2008AjVs6VYyKCrApRCGyFOiLRuGZTzRy2c++aEZY+x8cy1bY9e2IWkG6Gee4jaWvl6vf/rpp/1+5T9T89ChQzk5OQGnSlB3EEQRC/8gTbn7oRjD2wNaG/IkAMAzdufasvLNlXUXXGKNmrYEIRPFMol6XY7VdGd81IhuUd7cO+2e/q7i/HSr+8mVDIuoy4kAnrBHcM2kmnyHom75aivMnTv3448/9vtVk6myv/nNb/zWuWwZaI0BJipGv/yvkb0zN2Wn949ozYueyRV5KoSUCWK1JMiYMJCN5blYnlOdHTeOBgvHSuqmv4oqaiDjdZPrEXrC8dPHjjMIwKt2YYQTVqt1165dTcZ9m3rH4ZkzZ+Li1JSeQADV7Z+A79uf+2LzfYdPY0z3QrYU+Lpfmj3KL+RqR9nEJeXWaeVxsyvjZlXYZtnj5nwVO0GP6FqgpdNSKLBo0aJmnrNJz0lKSsqzzz4b6E1p7IO6OY8fQSte+9e5ixvLW7MTDV73S7NHXQ/sEuufeg/sKwJ6no5xAhiA6qHymqPAQ2Q6S7WV/FNTUxctWtTcEc2Q43K5gvRR06kAAGbMhEH5u8+J8g27bUigODzVD68ss04vj88rj7unwka7vyP+3j9YB2o51GF6YYmf5kP4ySef0FY3rQBu8DrbHTt2BJm/rnEARvzbPT/scWsXxWHkQSqvqsr7c4VlWoVtdkXc7Arb7HLbLKdtzufRY41aikYbxmOmT58uy3JQBBBCXnjhhWAeQutuCACUkfn8Nz94LxoeAjyHTlaO/X1lRG5l3Eyt41PVb8vbaZvcnTW0sfQTExNPnz59w2e+MQEOh2P06NEBP0fjQuPQGvPGO3+nmy9CDUVSnB9+U55+f0XktEo6687WpF8fl3co9s4BvOpcaUMCEELasis0b9Q+fPhwTEyMT5rBPBkE4OXch6QDp0M4EjwHTtfmLauImlYZPa1CNXi8ej8u74BtyiBN+m2Lxx9/vIUP39I6uR9//PH9999PU9lCUVr3kej+r899Mvr+X5EhKQHzSYuZ/XLa9b/fgXV7SH090TNqQoY35GKE7DZSMb9212nRGWxVh1Zi5MiRmzdvtlqtLTm4FdJcvHjx8uXLgybAW/RqHIhZ1n3MgJxRZNoINCaLjYtqeXKkXFYr7jji3rBd2n6IqfHQYlroSsVTHiAZgX94Ti21H6r1+ZzbioCEhIT8/PyWp9u2QpoejycvL2/Dhg0gRIhDuuf0WXm6XqaEWHlQL+aWDHZgKpcUS7pZoEmHWAQgAzEhskycblBZJ5ZUKEdK3PuKSEExvFRJiMJwDKDJkN5RxALIIOYIrn3dcWij+2LbJz4YDIbPP/988uTJLT+ldd25oqJiypQp+/btC+jxrr4xzV4hAIKxusSndOnjcCzCUNKz0GIAkXpkNdJCeojBkoJdAqhz050EDjeQFLqIZRnC0mQsdWMHnZQ4gBiISojrv4WTHzmLahSp7aWPEHrnnXcef/zxVp3Van1SXFw8efLk61/F0Vp4sxMgDakwCP67Ln6eLv3fuPhoqIOKIqn1makXWquigrzLJyp9r6eI7pnkAGQh8kByFNet9Zxd5z5XKlGNH2Qdk8Dw8ssvL126tLVnBaLQCwoKpk6deu7cORBqZLDmsYbut3PxWVxELNTzgKVbT72duaGikOpJkCGuB0IJdu8SqzZJF/e4y1zeqqJtO+E24JlnnnnzzTcDMBEDnFF//vnn3NxcrepZOGBjdb0YSwYbkcyYuiNjBGR1kCGEiFiqAFIJdhUr9pOSs0RxObHY7smeTz/99PLlywPcYxGw9b1v377k5GTQLoC+eRch9QPaDwsXLlSUwNeWgRNACDly5MiAAQPAzQoI4fPPP986T3toCSCElJSU3Hbbbb4HAjcNdDrd22+/rQkhGA6CJYAQUlNTM3fuXHAzIS4ubv369T7ptzMBNPwky6+88grPazXgujiGDBly8ODBkMgtZARo2Lhxo7b3tQvjgQceqKioCFLthIsAQkhxcXFubi7oirDZbB988EFI1E4YCdDU0d/+9reQ7HvtOJg8eXJhYWHIZRUWAjQcPXo0qOyuDoPu3bu/++67oiiGSVDhIkAbp2vXrvXtx+x00Ov1jz766NmzZ33N6WQEaKirq1uxYkW7rZkDAoTwzjvv3LlzZ1hF30YEaCgtLV26dKlWIacjg1G3MG7atCmsQm8HAjSUlpauWLEiKyurcZtha14PHj6YTKZZs2Zt2bKlzUTfDgRosNvtn3322TWbBWH7cZCWlvbcc88dPny47UXRiqB8OFBYWLhhw4aNGzcWFBSIDVVe2wwJCQljxoyZOXPm+PHjfS+X1aTRll2h/d8eLEnS4cOHv//++82bNx8+fLiykr5qsDH8lFsM9Jl5nk9NTR09evSkSZNycnKCr87QFQhojAsXLhw8eHD37t0///xzUVHR5cuXg3+9SlRUVHJy8oABA2699dYRI0b07du3seprd3QsAhrDbrefO3euuLj45MmTZ86cOXfuXHV1dWVlpSiKTqfzGmIQQiaTSa/XWyyWqKioxMTElJSU1NTU9PT01NTUhIQEX3GMjgbYMV03EEKEEMuyjFoECmMsSZIgCE6nUxAEu93udDobdx2WZSMiIgwGg8lkMhgMPM9rJyoNCOt7coLB/wETZm1N9topIwAAAABJRU5ErkJggg==" alt=""></div>
       <h1>Contas TikTok</h1>
     </div>
-    <button class="btn-criar" onclick="abrirModal()">+ &nbsp;Criar perfil</button>
-    <div class="navit">Todos os perfis</div>
+    <button class="btn-criar" onclick="novo()">+ &nbsp;Criar perfil</button>
+    <div class="navit on" id="navtodos" onclick="filtrar('')">Todos os perfis</div>
+    <div class="tagnav" id="tagnav"></div>
     <div class="count" id="count">0 perfis</div>
     <div class="foot">By Avant IA</div>
   </aside>
@@ -195,81 +232,57 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
   <div class="ov" id="ov">
     <div class="modal">
       <h3 id="mtit">Novo perfil</h3>
-      <p id="mmsg">Nome do cliente (ex: Loja da Ana):</p>
-      <input id="mInput" autocomplete="off">
+      <label>Nome do cliente</label>
+      <input id="mNome" autocomplete="off" placeholder="ex: Loja da Ana">
+      <label>Tags / pastas (separe por vírgula)</label>
+      <input id="mTags" autocomplete="off" placeholder="ex: Consultoria, Moda">
       <div class="macts">
         <button class="bsec" onclick="fecharModal()">Cancelar</button>
-        <button class="bok" id="mok">OK</button>
+        <button class="bok" id="mok">Salvar</button>
       </div>
     </div>
   </div>
 
 <script>
-const CORES=["#a78bfa","#34d399","#60a5fa","#fbbf24","#fb7185","#22d3ee",
-             "#f472b6","#4ade80","#818cf8","#f0883e"];
-let CONTAS=[];
-
-async function api(p,body){
-  const o={method: body?'POST':'GET'};
-  if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}
-  const r=await fetch(p,o); return r.json();
-}
-async function load(){ CONTAS=(await api('/api/list')).contas||[]; render(); }
-
+const CORES=["#a78bfa","#34d399","#60a5fa","#fbbf24","#fb7185","#22d3ee","#f472b6","#4ade80","#818cf8","#f0883e"];
+let CONTAS=[], ALLTAGS=[], FILTRO='';
+const $=id=>document.getElementById(id);
+function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function api(p,body){const o={method:body?'POST':'GET'};if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}const r=await fetch(p,o);try{return await r.json()}catch(e){return{}}}
+async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];render();}
+function setFiltro(t){FILTRO=(FILTRO===t?'':t);render();}
+function setFiltroIdx(i){setFiltro(ALLTAGS[i]);}
 function render(){
-  const f=(document.getElementById('busca').value||'').toLowerCase();
-  document.getElementById('count').textContent=CONTAS.length+' perfis';
-  const vis=CONTAS.filter(n=>n.toLowerCase().includes(f));
-  const L=document.getElementById('list');
-  if(!CONTAS.length){L.innerHTML=`<div class="vazio"><div class="ic">`+
-    `<svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>`+
-    `<h3>Nenhum perfil ainda</h3><div>Clique em “+ Criar perfil”.</div></div>`;return}
-  if(!vis.length){L.innerHTML=`<div class="vazio"><h3>Nada encontrado</h3></div>`;return}
-  L.innerHTML=vis.map(n=>{
-    const i=CONTAS.indexOf(n), c=CORES[i%CORES.length];
-    const ini=n.trim()[0].toUpperCase();
-    return `<div class="card" style="animation-delay:${(i%14)*45}ms">
-      <div class="ava" style="background:linear-gradient(135deg,${c},color-mix(in srgb,${c},#000 38%))">${ini}</div>
-      <div class="nome">${esc(n)}</div>
-      <span class="tag">TikTok Shop</span>
-      <button class="start" onclick="abrir('${esc(n)}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>START</button>
-      <button class="del" title="Remover" onclick="remover('${esc(n)}')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+  $('navtodos').classList.toggle('on',FILTRO==='');
+  $('tagnav').innerHTML=ALLTAGS.map((t,i)=>`<div class="tagit ${FILTRO===t?'on':''}" onclick="setFiltroIdx(${i})"><span class="dt"></span>${esc(t)}</div>`).join('');
+  const f=($('busca').value||'').toLowerCase();
+  let vis=CONTAS.filter(c=>c.nome.toLowerCase().includes(f));
+  if(FILTRO)vis=vis.filter(c=>(c.tags||[]).includes(FILTRO));
+  $('count').textContent=CONTAS.length+' perfis';
+  const L=$('list');
+  if(!CONTAS.length){L.innerHTML=`<div class="vazio"><div class="ic"><svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Nenhum perfil ainda</h3><div>Clique em "+ Criar perfil".</div></div>`;return;}
+  if(!vis.length){L.innerHTML=`<div class="vazio"><h3>Nada encontrado</h3></div>`;return;}
+  L.innerHTML=vis.map((c,vi)=>{
+    const i=CONTAS.indexOf(c),cor=CORES[i%CORES.length],ini=(c.nome.trim()[0]||'?').toUpperCase();
+    const chips=(c.tags||[]).map(t=>`<span class="t2">${esc(t)}</span>`).join('');
+    return `<div class="card" style="animation-delay:${(vi%14)*45}ms">
+      <div class="ava" style="background:linear-gradient(135deg,${cor},color-mix(in srgb,${cor},#000 38%))">${ini}</div>
+      <div style="flex:1;min-width:0"><div class="nome">${esc(c.nome)}</div>${chips?`<div class="cardtags">${chips}</div>`:''}</div>
+      <button class="edit" title="Editar / renomear" onclick="editar(${i})"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+      <button class="start" onclick="abrir(${i})"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>START</button>
+      <button class="del" title="Remover" onclick="remover(${i})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
     </div>`;}).join('');
 }
-function esc(s){return s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-
-async function abrir(n){ await api('/api/open',{nome:n}); }
-async function remover(n){
-  pedir("Remover perfil","Remover '"+n+"'? Isso apaga o login salvo dele.",async()=>{
-    await api('/api/delete',{nome:n}); load();
-  },"Remover");
-}
-function abrirModal(){
-  pedir("Novo perfil","Nome do cliente (ex: Loja da Ana):",async()=>{
-    const v=document.getElementById('mInput').value.trim();
-    if(!v) return;
-    const r=await api('/api/create',{nome:v});
-    if(r.erro){ alert(r.erro); return; }
-    load();
-  },"Criar");
-}
+async function abrir(i){await api('/api/open',{nome:CONTAS[i].nome});}
+function remover(i){const n=CONTAS[i].nome;if(!confirm("Remover '"+n+"'?\nIsso apaga o login salvo dele."))return;api('/api/delete',{nome:n}).then(load);}
+function novo(){abrirModal('Novo perfil','',[],async(nome,tags)=>{const r=await api('/api/create',{nome,tags});if(r.erro){alert(r.erro);return;}load();});}
+function editar(i){const c=CONTAS[i];abrirModal('Editar perfil',c.nome,c.tags||[],async(nome,tags)=>{if(nome!==c.nome){const r=await api('/api/rename',{nome:c.nome,novo:nome});if(r.erro){alert(r.erro);return;}}await api('/api/tags',{nome,tags});load();});}
 let _cb=null;
-function pedir(tit,msg,cb,okTxt){
-  document.getElementById('mtit').textContent=tit;
-  document.getElementById('mmsg').textContent=msg;
-  document.getElementById('mok').textContent=okTxt||'OK';
-  const inp=document.getElementById('mInput');
-  inp.style.display=(tit==='Novo perfil')?'block':'none';
-  inp.value='';
-  document.getElementById('ov').classList.add('on');
-  setTimeout(()=>inp.focus(),50);
-  _cb=cb;
-}
-function fecharModal(){document.getElementById('ov').classList.remove('on');_cb=null;}
-document.getElementById('mok').onclick=()=>{const cb=_cb;fecharModal();if(cb)cb();};
-document.getElementById('mInput').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){const cb=_cb;fecharModal();if(cb)cb();}
-});
+function abrirModal(tit,nome,tags,cb){$('mtit').textContent=tit;$('mNome').value=nome||'';$('mTags').value=(tags||[]).join(', ');$('ov').classList.add('on');_cb=cb;setTimeout(()=>$('mNome').focus(),50);}
+function fecharModal(){$('ov').classList.remove('on');_cb=null;}
+function salvarModal(){const nome=$('mNome').value.trim();const tags=$('mTags').value.split(',').map(s=>s.trim()).filter(Boolean);if(!nome)return;const cb=_cb;fecharModal();if(cb)cb(nome,tags);}
+$('mok').onclick=salvarModal;
+['mNome','mTags'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter')salvarModal();}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharModal();});
 load();
 </script>
@@ -292,7 +305,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/" or self.path.startswith("/index"):
             self._send(200, HTML, "text/html")
         elif self.path == "/api/list":
-            self._send(200, json.dumps({"contas": carregar()}))
+            contas = carregar()
+            self._send(200, json.dumps(
+                {"contas": contas, "tags": _todas_tags(contas)}))
         else:
             self._send(404, "{}")
 
@@ -303,29 +318,56 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             dados = {}
         nome = (dados.get("nome") or "").strip()
+        tags = [t.strip() for t in (dados.get("tags") or []) if t.strip()]
         contas = carregar()
         if self.path == "/api/create":
             if not nome:
                 return self._send(200, json.dumps({"erro": "Nome vazio"}))
-            if nome in contas:
+            if _idx(contas, nome) >= 0:
                 return self._send(200, json.dumps(
                     {"erro": "Ja existe um perfil com esse nome."}))
-            contas.append(nome)
+            contas.append({"nome": nome, "tags": tags})
             salvar(contas)
             semear(nome)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/open":
-            ok = abrir_perfil(nome)
-            self._send(200, json.dumps({"ok": ok}))
+            self._send(200, json.dumps({"ok": abrir_perfil(nome)}))
         elif self.path == "/api/delete":
-            if nome in contas:
-                contas.remove(nome)
+            k = _idx(contas, nome)
+            if k >= 0:
+                contas.pop(k)
                 salvar(contas)
             try:
                 shutil.rmtree(os.path.join(CHROME_UDD, _slug(nome)),
                               ignore_errors=True)
             except Exception:
                 pass
+            self._send(200, json.dumps({"ok": True}))
+        elif self.path == "/api/tags":
+            k = _idx(contas, nome)
+            if k >= 0:
+                contas[k]["tags"] = tags
+                salvar(contas)
+            self._send(200, json.dumps({"ok": True}))
+        elif self.path == "/api/rename":
+            novo = (dados.get("novo") or "").strip()
+            k = _idx(contas, nome)
+            if not novo:
+                return self._send(200, json.dumps({"erro": "Nome vazio"}))
+            if novo != nome and _idx(contas, novo) >= 0:
+                return self._send(200, json.dumps(
+                    {"erro": "Ja existe um perfil com esse nome."}))
+            if k >= 0:
+                old_d = os.path.join(CHROME_UDD, _slug(nome))
+                new_d = os.path.join(CHROME_UDD, _slug(novo))
+                if (_slug(nome) != _slug(novo) and os.path.isdir(old_d)
+                        and not os.path.exists(new_d)):
+                    try:
+                        os.rename(old_d, new_d)   # preserva o login
+                    except Exception:
+                        pass
+                contas[k]["nome"] = novo
+                salvar(contas)
             self._send(200, json.dumps({"ok": True}))
         else:
             self._send(404, "{}")
