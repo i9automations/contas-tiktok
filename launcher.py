@@ -12,6 +12,20 @@ import sys
 import time
 import urllib.request
 
+# IMPORTANTE: o navegador.py e baixado em tempo de execucao, entao o PyInstaller
+# nao ve os imports dele. Importamos aqui tudo que ele usa pra GARANTIR que o
+# .exe empacote esses modulos (senao da "No module named 'json'" etc).
+import json            # noqa: F401
+import re              # noqa: F401
+import shutil          # noqa: F401
+import subprocess      # noqa: F401
+import threading       # noqa: F401
+import http.server     # noqa: F401
+import socketserver    # noqa: F401
+import urllib.parse    # noqa: F401
+import webbrowser      # noqa: F401
+import base64          # noqa: F401
+
 # A API do GitHub reflete a versao mais nova NA HORA. O raw.githubusercontent
 # tem um cache (CDN) que ignora ?t= e servia versao velha -> por isso usamos a
 # API primeiro, com o raw so de reserva.
