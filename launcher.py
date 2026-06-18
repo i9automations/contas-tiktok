@@ -12,6 +12,11 @@ import sys
 import time
 import urllib.request
 
+# A API do GitHub reflete a versao mais nova NA HORA. O raw.githubusercontent
+# tem um cache (CDN) que ignora ?t= e servia versao velha -> por isso usamos a
+# API primeiro, com o raw so de reserva.
+API_URL = ("https://api.github.com/repos/i9automations/contas-tiktok/"
+           "contents/navegador.py?ref=main")
 RAW_URL = ("https://raw.githubusercontent.com/i9automations/"
            "contas-tiktok/main/navegador.py")
 
@@ -28,13 +33,25 @@ CACHE = os.path.join(BASE, "_cache_app.py")   # ultima versao baixada (fallback)
 
 
 def _baixar():
-    # ?t=<timestamp> fura o cache do CDN do GitHub (senao vinha versao velha)
-    url = RAW_URL + "?t=" + str(int(time.time()))
-    req = urllib.request.Request(
-        url, headers={"Cache-Control": "no-cache", "Pragma": "no-cache",
-                      "User-Agent": "ContasTikTok-Launcher"})
-    with urllib.request.urlopen(req, timeout=12) as r:
-        return r.read().decode("utf-8")
+    tentativas = [
+        # 1) API do GitHub (sempre fresca) — Accept raw devolve o arquivo cru
+        (API_URL, {"Accept": "application/vnd.github.raw",
+                   "User-Agent": "ContasTikTok-Launcher",
+                   "Cache-Control": "no-cache"}),
+        # 2) reserva: raw + timestamp
+        (RAW_URL + "?t=" + str(int(time.time())),
+         {"User-Agent": "ContasTikTok-Launcher", "Cache-Control": "no-cache"}),
+    ]
+    for url, hdr in tentativas:
+        try:
+            req = urllib.request.Request(url, headers=hdr)
+            with urllib.request.urlopen(req, timeout=15) as r:
+                txt = r.read().decode("utf-8")
+            if txt.strip():
+                return txt
+        except Exception:
+            continue
+    raise RuntimeError("download falhou")
 
 
 def main():
