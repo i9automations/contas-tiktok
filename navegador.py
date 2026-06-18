@@ -243,6 +243,17 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
     </div>
   </div>
 
+  <div class="ov" id="ov2">
+    <div class="modal">
+      <h3 id="d2tit"></h3>
+      <p id="d2msg" style="margin-bottom:0"></p>
+      <div class="macts">
+        <button class="bsec" id="d2cancel" onclick="d2fechar()">Cancelar</button>
+        <button class="bok" id="d2ok">OK</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 const CORES=["#a78bfa","#34d399","#60a5fa","#fbbf24","#fb7185","#22d3ee","#f472b6","#4ade80","#818cf8","#f0883e"];
 let CONTAS=[], ALLTAGS=[], FILTRO='';
@@ -274,16 +285,22 @@ function render(){
     </div>`;}).join('');
 }
 async function abrir(i){await api('/api/open',{nome:CONTAS[i].nome});}
-function remover(i){const n=CONTAS[i].nome;if(!confirm("Remover '"+n+"'?\nIsso apaga o login salvo dele."))return;api('/api/delete',{nome:n}).then(load);}
-function novo(){abrirModal('Novo perfil','',[],async(nome,tags)=>{const r=await api('/api/create',{nome,tags});if(r.erro){alert(r.erro);return;}load();});}
-function editar(i){const c=CONTAS[i];abrirModal('Editar perfil',c.nome,c.tags||[],async(nome,tags)=>{if(nome!==c.nome){const r=await api('/api/rename',{nome:c.nome,novo:nome});if(r.erro){alert(r.erro);return;}}await api('/api/tags',{nome,tags});load();});}
+function remover(i){const n=CONTAS[i].nome;dlgConfirma("Remover '"+n+"'? Isso apaga o login salvo dele (vai precisar logar de novo).",()=>api('/api/delete',{nome:n}).then(load),'Remover perfil','Remover');}
+function novo(){abrirModal('Novo perfil','',[],async(nome,tags)=>{const r=await api('/api/create',{nome,tags});if(r.erro){dlgAviso(r.erro);return;}load();});}
+function editar(i){const c=CONTAS[i];abrirModal('Editar perfil',c.nome,c.tags||[],async(nome,tags)=>{if(nome!==c.nome){const r=await api('/api/rename',{nome:c.nome,novo:nome});if(r.erro){dlgAviso(r.erro);return;}}await api('/api/tags',{nome,tags});load();});}
 let _cb=null;
 function abrirModal(tit,nome,tags,cb){$('mtit').textContent=tit;$('mNome').value=nome||'';$('mTags').value=(tags||[]).join(', ');$('ov').classList.add('on');_cb=cb;setTimeout(()=>$('mNome').focus(),50);}
 function fecharModal(){$('ov').classList.remove('on');_cb=null;}
 function salvarModal(){const nome=$('mNome').value.trim();const tags=$('mTags').value.split(',').map(s=>s.trim()).filter(Boolean);if(!nome)return;const cb=_cb;fecharModal();if(cb)cb(nome,tags);}
 $('mok').onclick=salvarModal;
 ['mNome','mTags'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter')salvarModal();}));
-document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharModal();});
+let _d2cb=null;
+function dlg(tit,msg,okTxt,cb){$('d2tit').textContent=tit;$('d2msg').textContent=msg;$('d2ok').textContent=okTxt||'OK';$('d2cancel').style.display=cb?'':'none';$('ov2').classList.add('on');_d2cb=cb||null;}
+function d2fechar(){$('ov2').classList.remove('on');_d2cb=null;}
+$('d2ok').onclick=()=>{const cb=_d2cb;d2fechar();if(cb)cb();};
+function dlgAviso(msg,tit){dlg(tit||'Aviso',msg,'OK',null);}
+function dlgConfirma(msg,cb,tit,ok){dlg(tit||'Confirmar',msg,ok||'Sim',cb);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){fecharModal();d2fechar();}else if(e.key==='Enter'&&$('ov2').classList.contains('on'))$('d2ok').click();});
 load();
 </script>
 </body></html>"""
