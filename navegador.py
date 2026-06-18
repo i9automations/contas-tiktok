@@ -185,7 +185,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);
       <h1>Contas TikTok</h1>
     </div>
     <button class="btn-criar" onclick="abrirModal()">+ &nbsp;Criar perfil</button>
-    <div class="navit">📁 &nbsp;Todos os perfis</div>
+    <div class="navit">Todos os perfis</div>
     <div class="count" id="count">0 perfis</div>
     <div class="foot">sem proxy · sem anti-detecção<br>simples e direto</div>
   </aside>
@@ -193,7 +193,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);
   <main class="main">
     <div class="top">
       <h2>Todos os perfis</h2>
-      <input class="search" id="busca" placeholder="🔎  Buscar perfil..."
+      <input class="search" id="busca" placeholder="Buscar perfil..."
              oninput="render()">
     </div>
     <div class="thead"><span>PERFIL</span><span>AÇÕES</span></div>
@@ -229,8 +229,9 @@ function render(){
   document.getElementById('count').textContent=CONTAS.length+' perfis';
   const vis=CONTAS.filter(n=>n.toLowerCase().includes(f));
   const L=document.getElementById('list');
-  if(!CONTAS.length){L.innerHTML=`<div class="vazio"><div class="ic">🗂️</div>
-    <h3>Nenhum perfil ainda</h3><div>Clique em “+ Criar perfil”.</div></div>`;return}
+  if(!CONTAS.length){L.innerHTML=`<div class="vazio"><div class="ic">`+
+    `<svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>`+
+    `<h3>Nenhum perfil ainda</h3><div>Clique em “+ Criar perfil”.</div></div>`;return}
   if(!vis.length){L.innerHTML=`<div class="vazio"><h3>Nada encontrado</h3></div>`;return}
   L.innerHTML=vis.map(n=>{
     const i=CONTAS.indexOf(n), c=CORES[i%CORES.length];
@@ -239,8 +240,8 @@ function render(){
       <div class="ava" style="background:${c}">${ini}</div>
       <div class="nome">${esc(n)}</div>
       <span class="tag">TikTok Shop</span>
-      <button class="start" onclick="abrir('${esc(n)}')">▶ START</button>
-      <button class="del" title="Remover" onclick="remover('${esc(n)}')">🗑</button>
+      <button class="start" onclick="abrir('${esc(n)}')"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>START</button>
+      <button class="del" title="Remover" onclick="remover('${esc(n)}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
     </div>`;}).join('');
 }
 function esc(s){return s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
