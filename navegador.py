@@ -26,11 +26,8 @@ REG = os.path.join(PASTA, "contas.json")
 LOGIN_URL = "https://seller-br.tiktok.com/account/login"
 
 
-def achar_chrome():
-    # 1) PREFERE o Chrome travado embutido (nao se atualiza, mantem logins).
-    if os.path.exists(CHROME_FIXO):
-        return CHROME_FIXO
-    # 2) Senao, usa o Chrome do sistema (que se atualiza sozinho).
+def _chrome_sistema():
+    """Chrome do Google instalado (usado SO pra janela do app; se atualiza)."""
     cands = [
         os.path.join(os.environ.get("PROGRAMFILES", ""),
                      r"Google\Chrome\Application\chrome.exe"),
@@ -43,6 +40,13 @@ def achar_chrome():
         if c and os.path.exists(c):
             return c
     return shutil.which("chrome") or shutil.which("chrome.exe")
+
+
+def achar_chrome():
+    # navegador da JANELA do app (nao guarda login de conta) — tanto faz qual.
+    if os.path.exists(CHROME_FIXO):
+        return CHROME_FIXO
+    return _chrome_sistema()
 
 
 CHROME = achar_chrome()
@@ -149,15 +153,24 @@ def semear(nome):
 
 
 def abrir_perfil(nome):
-    if not CHROME:
-        return False
     semear(nome)
+    # DOLPHIN: as contas SEMPRE abrem no navegador PROPRIO (que NAO se atualiza).
+    # E isso que impede de deslogar. So cai no Chrome do sistema se ainda nao
+    # deu pra ter o proprio (ex: sem internet) — e a UI avisa.
+    if os.path.exists(CHROME_FIXO):
+        exe = CHROME_FIXO
+    elif _chrome_status.get("baixando"):
+        return "preparando"          # navegador proprio ainda baixando
+    else:
+        exe = _chrome_sistema()
+        if not exe:
+            return "sem_navegador"
     subprocess.Popen([
-        CHROME,
+        exe,
         f"--user-data-dir={_perfil_dir(nome)}",   # pasta ISOLADA (chave propria)
         "--no-first-run", "--no-default-browser-check", LOGIN_URL,
     ])
-    return True
+    return "ok" if exe == CHROME_FIXO else "ok_sistema"
 
 
 # pastas de cache que NAO precisam ir pro backup (so incham o zip)
@@ -205,8 +218,8 @@ def restaurar_ultimo():
         return {"ok": False, "erro": str(e)}
 
 
-# estado do download do Chrome travado (consultado pela UI)
-_chrome_status = {"baixando": False, "msg": "", "ok": None}
+# estado do download do navegador proprio (consultado pela UI)
+_chrome_status = {"baixando": False, "msg": "", "ok": None, "pct": 0}
 
 
 def baixar_chrome_travado():
@@ -214,7 +227,11 @@ def baixar_chrome_travado():
     import urllib.request
     import zipfile
     import io
-    _chrome_status.update(baixando=True, ok=None, msg="Procurando versao...")
+    if os.path.exists(CHROME_FIXO):
+        _chrome_status.update(baixando=False, ok=True, pct=100)
+        return
+    _chrome_status.update(baixando=True, ok=None, pct=0,
+                          msg="Preparando o navegador...")
     try:
         idx = ("https://googlechromelabs.github.io/chrome-for-testing/"
                "last-known-good-versions-with-downloads.json")
@@ -222,10 +239,20 @@ def baixar_chrome_travado():
             data = json.loads(r.read().decode("utf-8"))
         dls = data["channels"]["Stable"]["downloads"]["chrome"]
         url = next(d["url"] for d in dls if d["platform"] == "win64")
-        _chrome_status["msg"] = "Baixando Chrome (~150 MB)..."
         with urllib.request.urlopen(url, timeout=600) as r:
-            buf = io.BytesIO(r.read())
-        _chrome_status["msg"] = "Extraindo..."
+            total = int(r.headers.get("Content-Length", 0) or 0)
+            lido = 0
+            partes = []
+            while True:
+                pedaco = r.read(262144)
+                if not pedaco:
+                    break
+                partes.append(pedaco)
+                lido += len(pedaco)
+                pct = int(lido * 100 / total) if total else 0
+                _chrome_status.update(pct=pct, msg=f"Baixando: {pct}%")
+        buf = io.BytesIO(b"".join(partes))
+        _chrome_status.update(msg="Instalando...", pct=100)
         tmp = os.path.join(PASTA, "_chrome_tmp")
         shutil.rmtree(tmp, ignore_errors=True)
         with zipfile.ZipFile(buf) as z:
@@ -242,8 +269,8 @@ def baixar_chrome_travado():
         shutil.rmtree(destino, ignore_errors=True)
         shutil.move(origem, destino)
         shutil.rmtree(tmp, ignore_errors=True)
-        _chrome_status.update(baixando=False, ok=True,
-                              msg="Chrome travado instalado! Feche e reabra o app.")
+        _chrome_status.update(baixando=False, ok=True, pct=100,
+                              msg="Navegador pronto!")
     except Exception as e:
         _chrome_status.update(baixando=False, ok=False,
                               msg="Falhou: " + str(e))
@@ -367,7 +394,6 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
     <div class="tools">
       <button class="btool" onclick="backup()">Backup das contas</button>
       <button class="btool" onclick="restaurar()">Restaurar último backup</button>
-      <button class="btool" id="btravar" onclick="travar()">Travar Chrome (recomendado)</button>
       <div class="tstatus" id="tstatus"></div>
     </div>
     <div class="foot">By Avant IA</div>
@@ -379,6 +405,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
       <input class="search" id="busca" placeholder="Buscar perfil..."
              oninput="render()">
     </div>
+    <div id="prep" style="display:none;margin:0 0 12px;padding:11px 15px;border:1px solid var(--cy);border-radius:10px;background:rgba(37,244,238,.07);color:var(--fg);font-size:13px"></div>
     <div class="thead"><span>PERFIL</span><span>AÇÕES</span></div>
     <div class="list" id="list"></div>
   </main>
@@ -414,13 +441,15 @@ let CONTAS=[], ALLTAGS=[], FILTRO='';
 const $=id=>document.getElementById(id);
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(p,body){const o={method:body?'POST':'GET'};if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}const r=await fetch(p,o);try{return await r.json()}catch(e){return{}}}
-async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];
-  const bt=$('btravar');if(bt){if(d.chrome_travado){bt.textContent='Chrome travado ✓';bt.disabled=true;bt.style.opacity=.6;}else{bt.textContent='Travar Chrome (recomendado)';}}
-  render();}
+async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];render();}
 async function backup(){$('tstatus').textContent='Fazendo backup...';const r=await api('/api/backup',{});$('tstatus').textContent=r.ok?('Backup salvo: '+r.arquivo):('Falhou: '+(r.erro||''));}
 function restaurar(){dlgConfirma('Restaurar o último backup? FECHE todos os navegadores antes. Isso sobrescreve as contas atuais.',async()=>{$('tstatus').textContent='Restaurando...';const r=await api('/api/restaurar',{});$('tstatus').textContent=r.ok?('Restaurado: '+r.arquivo):('Falhou: '+(r.erro||''));if(r.ok)load();},'Restaurar backup','Restaurar');}
-function travar(){dlgConfirma('Baixar um Chrome que NÃO se atualiza (~150 MB)? É o que impede as contas de deslogarem sozinhas. Pode demorar alguns minutos.',()=>{api('/api/travar_chrome',{});pollChrome();},'Travar Chrome','Baixar');}
-async function pollChrome(){const s=await api('/api/chrome_status');$('tstatus').textContent=s.msg||'';if(s.baixando){setTimeout(pollChrome,1500);}else{if(s.ok)load();}}
+async function pollPrep(){try{const s=await api('/api/chrome_status');const p=$('prep');
+  if(s.pronto){p.style.display='none';}
+  else if(s.baixando){p.style.display='block';p.textContent='Preparando o navegador próprio (só na primeira vez) — '+(s.msg||'...')+'. As contas abrem sozinhas assim que terminar.';}
+  else if(s.ok===false){p.style.display='block';p.textContent='Não consegui baixar o navegador próprio ('+(s.msg||'')+'). Por enquanto as contas abrem no Chrome do sistema. Verifique a internet.';}
+  else{p.style.display='block';p.textContent='Preparando o navegador próprio (só na primeira vez)...';}
+}catch(e){}setTimeout(pollPrep,1500);}
 function setFiltro(t){FILTRO=(FILTRO===t?'':t);render();}
 function setFiltroIdx(i){setFiltro(ALLTAGS[i]);}
 function render(){
@@ -444,7 +473,9 @@ function render(){
       <button class="del" title="Remover" onclick="remover(${i})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
     </div>`;}).join('');
 }
-async function abrir(i){await api('/api/open',{nome:CONTAS[i].nome});}
+async function abrir(i){const r=await api('/api/open',{nome:CONTAS[i].nome});
+  if(r.status==='preparando'){dlgAviso('O navegador próprio ainda está baixando (só na primeira vez). Espere a barra azul terminar e clique de novo.');}
+  else if(r.status==='sem_navegador'){dlgAviso('Não achei um navegador pra abrir. Conecte a internet (pra baixar o navegador próprio) ou instale o Google Chrome.');}}
 function remover(i){const n=CONTAS[i].nome;dlgConfirma("Remover '"+n+"'? Isso apaga o login salvo dele (vai precisar logar de novo).",()=>api('/api/delete',{nome:n}).then(load),'Remover perfil','Remover');}
 function novo(){abrirModal('Novo perfil','',[],async(nome,tags)=>{const r=await api('/api/create',{nome,tags});if(r.erro){dlgAviso(r.erro);return;}load();});}
 function editar(i){const c=CONTAS[i];abrirModal('Editar perfil',c.nome,c.tags||[],async(nome,tags)=>{if(nome!==c.nome){const r=await api('/api/rename',{nome:c.nome,novo:nome});if(r.erro){dlgAviso(r.erro);return;}}await api('/api/tags',{nome,tags});load();});}
@@ -462,6 +493,7 @@ function dlgAviso(msg,tit){dlg(tit||'Aviso',msg,'OK',null);}
 function dlgConfirma(msg,cb,tit,ok){dlg(tit||'Confirmar',msg,ok||'Sim',cb);}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){fecharModal();d2fechar();}else if(e.key==='Enter'&&$('ov2').classList.contains('on'))$('d2ok').click();});
 load();
+pollPrep();
 </script>
 </body></html>"""
 
@@ -487,7 +519,8 @@ class Handler(BaseHTTPRequestHandler):
                 {"contas": contas, "tags": _todas_tags(contas),
                  "chrome_travado": os.path.exists(CHROME_FIXO)}))
         elif self.path == "/api/chrome_status":
-            self._send(200, json.dumps(_chrome_status))
+            self._send(200, json.dumps(
+                {**_chrome_status, "pronto": os.path.exists(CHROME_FIXO)}))
         else:
             self._send(404, "{}")
 
@@ -511,7 +544,7 @@ class Handler(BaseHTTPRequestHandler):
             semear(nome)
             self._send(200, json.dumps({"ok": True}))
         elif self.path == "/api/open":
-            self._send(200, json.dumps({"ok": abrir_perfil(nome)}))
+            self._send(200, json.dumps({"status": abrir_perfil(nome)}))
         elif self.path == "/api/delete":
             k = _idx(contas, nome)
             if k >= 0:
@@ -565,6 +598,10 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     os.makedirs(CONTAS_DIR, exist_ok=True)
+    # DOLPHIN: na primeira vez, ja baixa o navegador proprio sozinho (em 2o
+    # plano). Ninguem precisa clicar em nada; a UI mostra o progresso.
+    if not os.path.exists(CHROME_FIXO):
+        threading.Thread(target=baixar_chrome_travado, daemon=True).start()
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
