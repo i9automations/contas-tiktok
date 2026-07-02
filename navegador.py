@@ -301,17 +301,22 @@ def importar_antigas():
     pro layout novo, preservando o login (mesma maquina). Traz de volta ate contas
     que sumiram da lista mas ainda estao no disco."""
     if not os.path.isdir(CHROME_UDD):
-        return {"ok": True, "importadas": 0, "logadas": 0}
+        return {"ok": True, "encontradas": 0, "importadas": 0, "logadas": 0}
     contas = carregar()
     tem = {_slug(c["nome"]) for c in contas}
-    novas, logadas = 0, 0
+    encontradas, novas, logadas = 0, 0, 0
     for d in sorted(os.listdir(CHROME_UDD)):
         pdir = os.path.join(CHROME_UDD, d)
-        # e um PERFIL de verdade? (tem Preferences). Descarta pastas de
-        # componente do Chrome (GPUCache, BrowserMetrics, etc.).
-        if not os.path.isdir(pdir) or not os.path.exists(
-                os.path.join(pdir, "Preferences")):
+        if not os.path.isdir(pdir):
             continue
+        # e um PERFIL? (tem Preferences OU cookies). Descarta pastas de
+        # componente do Chrome (GPUCache, BrowserMetrics, etc.).
+        eh_perfil = (os.path.exists(os.path.join(pdir, "Preferences"))
+                     or os.path.exists(os.path.join(pdir, "Cookies"))
+                     or os.path.exists(os.path.join(pdir, "Network", "Cookies")))
+        if not eh_perfil:
+            continue
+        encontradas += 1
         nome = d
         try:
             with open(os.path.join(pdir, "Preferences"), encoding="utf-8") as f:
@@ -329,7 +334,8 @@ def importar_antigas():
             tem.add(_slug(nome))
             novas += 1
     salvar(contas)
-    return {"ok": True, "importadas": novas, "logadas": logadas}
+    return {"ok": True, "encontradas": encontradas,
+            "importadas": novas, "logadas": logadas}
 
 
 # estado do download do navegador proprio (consultado pela UI)
@@ -566,7 +572,7 @@ const $=id=>document.getElementById(id);
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(p,body){const o={method:body?'POST':'GET'};if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}const r=await fetch(p,o);try{return await r.json()}catch(e){return{}}}
 async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];render();}
-function importar(){dlgConfirma('Procurar contas já logadas na versão antiga do app (neste PC) e importar? O login é mantido. FECHE os navegadores abertos antes.',async()=>{$('tstatus').textContent='Importando...';const r=await api('/api/importar',{});if(r.ok){$('tstatus').textContent=r.importadas+' importada(s), '+r.logadas+' já logada(s).';load();}else{$('tstatus').textContent='Falhou: '+(r.erro||'');}},'Importar contas antigas','Importar');}
+function importar(){dlgConfirma('Procurar contas já logadas na versão antiga do app (neste PC) e importar? O login é mantido. FECHE os navegadores abertos antes.',async()=>{$('tstatus').textContent='Importando...';const r=await api('/api/importar',{});$('tstatus').textContent='';if(!r||!r.ok){dlgAviso('Falhou ao importar'+(r&&r.erro?': '+r.erro:'.'));return;}load();if((r.encontradas||0)===0){dlgAviso('Nenhuma conta antiga foi encontrada na pasta do app (navegadores) neste PC. Se os logins antigos estiverem em outro lugar, me avise.','Importar contas');}else{dlgAviso('Encontrei '+r.encontradas+' conta(s) antiga(s): '+r.importadas+' nova(s) adicionada(s) à lista e '+r.logadas+' logada(s). As logadas ficam com a bolinha verde.','Importar contas');}},'Importar contas antigas','Importar');}
 async function backup(){$('tstatus').textContent='Fazendo backup...';const r=await api('/api/backup',{});$('tstatus').textContent=r.ok?('Backup salvo: '+r.arquivo):('Falhou: '+(r.erro||''));}
 function restaurar(){dlgConfirma('Restaurar o último backup? FECHE todos os navegadores antes. Isso sobrescreve as contas atuais.',async()=>{$('tstatus').textContent='Restaurando...';const r=await api('/api/restaurar',{});$('tstatus').textContent=r.ok?('Restaurado: '+r.arquivo):('Falhou: '+(r.erro||''));if(r.ok)load();},'Restaurar backup','Restaurar');}
 async function pollPrep(){try{const s=await api('/api/chrome_status');const p=$('prep');
