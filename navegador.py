@@ -197,7 +197,11 @@ def abrir_perfil(nome):
     _abertos[nome] = subprocess.Popen([
         exe,
         f"--user-data-dir={_perfil_dir(nome)}",   # pasta ISOLADA (chave propria)
-        "--no-first-run", "--no-default-browser-check", LOGIN_URL,
+        "--no-first-run", "--no-default-browser-check",
+        # esconde os avisos amarelos (automacao / "Chrome for Testing") pra
+        # ninguem clicar por engano em "Baixe o Chrome".
+        "--test-type", "--disable-infobars",
+        LOGIN_URL,
     ])
     return "ok" if exe == CHROME_FIXO else "ok_sistema"
 
