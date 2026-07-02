@@ -747,6 +747,7 @@ def main():
         proc = subprocess.Popen([
             CHROME, f"--app={url}", f"--user-data-dir={UI_UDD}",
             "--no-first-run", "--no-default-browser-check",
+            "--test-type", "--disable-infobars",   # esconde o aviso do Chrome for Testing
             "--window-size=1120,720",
         ])
         proc.wait()                 # bloqueia ate fechar a janela do app
