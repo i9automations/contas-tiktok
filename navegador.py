@@ -509,6 +509,10 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 .stbadge.logada{color:#34d399}.stbadge.logada::before{background:#34d399}
 .stbadge.expirada{color:#fbbf24}.stbadge.expirada::before{background:#fbbf24}
 .stbadge.deslogada{color:#8b95a3}
+.ordbtn{background:var(--chip);color:var(--fg);border:1px solid var(--line);
+  border-radius:9px;padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;
+  white-space:nowrap;transition:.13s}
+.ordbtn:hover{border-color:var(--pk);color:var(--pk)}
 </style></head>
 <body>
   <aside class="side">
@@ -532,6 +536,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
   <main class="main">
     <div class="top">
       <h2>Todos os perfis</h2>
+      <button class="ordbtn" id="ordbtn" onclick="toggleOrdem()" title="Ordenar">A → Z</button>
       <input class="search" id="busca" placeholder="Buscar perfil..."
              oninput="render()">
     </div>
@@ -567,7 +572,8 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
 
 <script>
 const CORES=["#a78bfa","#34d399","#60a5fa","#fbbf24","#fb7185","#22d3ee","#f472b6","#4ade80","#818cf8","#f0883e"];
-let CONTAS=[], ALLTAGS=[], FILTRO='';
+let CONTAS=[], ALLTAGS=[], FILTRO='', ORDEM='az';
+function toggleOrdem(){ORDEM=ORDEM==='az'?'za':'az';const b=document.getElementById('ordbtn');if(b)b.textContent=ORDEM==='az'?'A → Z':'Z → A';render();}
 const $=id=>document.getElementById(id);
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(p,body){const o={method:body?'POST':'GET'};if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}const r=await fetch(p,o);try{return await r.json()}catch(e){return{}}}
@@ -593,6 +599,8 @@ function render(){
   const f=($('busca').value||'').toLowerCase();
   let vis=CONTAS.filter(c=>c.nome.toLowerCase().includes(f));
   if(FILTRO)vis=vis.filter(c=>(c.tags||[]).includes(FILTRO));
+  if(ORDEM==='az')vis.sort((a,b)=>a.nome.localeCompare(b.nome,'pt',{sensitivity:'base'}));
+  else if(ORDEM==='za')vis.sort((a,b)=>b.nome.localeCompare(a.nome,'pt',{sensitivity:'base'}));
   $('count').textContent=CONTAS.length+' perfis';
   const L=$('list');
   if(!CONTAS.length){L.innerHTML=`<div class="vazio"><div class="ic"><svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Nenhum perfil ainda</h3><div>Clique em "+ Criar perfil".</div></div>`;return;}
