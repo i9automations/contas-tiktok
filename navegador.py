@@ -292,6 +292,42 @@ def restaurar_ultimo():
         return {"ok": False, "erro": str(e)}
 
 
+def importar_antigas():
+    """Acha os perfis logados na PASTA ANTIGA (navegadores/) do mesmo PC e importa
+    pro layout novo, preservando o login (mesma maquina). Traz de volta ate contas
+    que sumiram da lista mas ainda estao no disco."""
+    if not os.path.isdir(CHROME_UDD):
+        return {"ok": True, "importadas": 0, "logadas": 0}
+    contas = carregar()
+    tem = {_slug(c["nome"]) for c in contas}
+    novas, logadas = 0, 0
+    for d in sorted(os.listdir(CHROME_UDD)):
+        pdir = os.path.join(CHROME_UDD, d)
+        # e um PERFIL de verdade? (tem Preferences). Descarta pastas de
+        # componente do Chrome (GPUCache, BrowserMetrics, etc.).
+        if not os.path.isdir(pdir) or not os.path.exists(
+                os.path.join(pdir, "Preferences")):
+            continue
+        nome = d
+        try:
+            with open(os.path.join(pdir, "Preferences"), encoding="utf-8") as f:
+                nm = (json.load(f).get("profile") or {}).get("name")
+            if nm and _slug(nm) == d:
+                nome = nm
+        except Exception:
+            pass
+        _migrar_se_preciso(nome)          # copia p/ contas/<slug> com a chave
+        _marcar_perfil(nome)              # nome + cor + avatar
+        if _status_conta(nome) in ("logada", "aberta"):
+            logadas += 1
+        if _slug(nome) not in tem:
+            contas.append({"nome": nome, "tags": []})
+            tem.add(_slug(nome))
+            novas += 1
+    salvar(contas)
+    return {"ok": True, "importadas": novas, "logadas": logadas}
+
+
 # estado do download do navegador proprio (consultado pela UI)
 _chrome_status = {"baixando": False, "msg": "", "ok": None, "pct": 0}
 
@@ -475,6 +511,7 @@ body{font-family:'Segoe UI Variable Text','Segoe UI',system-ui,-apple-system,san
     <div class="tagnav" id="tagnav"></div>
     <div class="count" id="count">0 perfis</div>
     <div class="tools">
+      <button class="btool" onclick="importar()">Importar contas antigas</button>
       <button class="btool" onclick="backup()">Backup das contas</button>
       <button class="btool" onclick="restaurar()">Restaurar último backup</button>
       <div class="tstatus" id="tstatus"></div>
@@ -525,6 +562,7 @@ const $=id=>document.getElementById(id);
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function api(p,body){const o={method:body?'POST':'GET'};if(body){o.headers={'Content-Type':'application/json'};o.body=JSON.stringify(body)}const r=await fetch(p,o);try{return await r.json()}catch(e){return{}}}
 async function load(){const d=await api('/api/list');CONTAS=d.contas||[];ALLTAGS=d.tags||[];render();}
+function importar(){dlgConfirma('Procurar contas já logadas na versão antiga do app (neste PC) e importar? O login é mantido. FECHE os navegadores abertos antes.',async()=>{$('tstatus').textContent='Importando...';const r=await api('/api/importar',{});if(r.ok){$('tstatus').textContent=r.importadas+' importada(s), '+r.logadas+' já logada(s).';load();}else{$('tstatus').textContent='Falhou: '+(r.erro||'');}},'Importar contas antigas','Importar');}
 async function backup(){$('tstatus').textContent='Fazendo backup...';const r=await api('/api/backup',{});$('tstatus').textContent=r.ok?('Backup salvo: '+r.arquivo):('Falhou: '+(r.erro||''));}
 function restaurar(){dlgConfirma('Restaurar o último backup? FECHE todos os navegadores antes. Isso sobrescreve as contas atuais.',async()=>{$('tstatus').textContent='Restaurando...';const r=await api('/api/restaurar',{});$('tstatus').textContent=r.ok?('Restaurado: '+r.arquivo):('Falhou: '+(r.erro||''));if(r.ok)load();},'Restaurar backup','Restaurar');}
 async function pollPrep(){try{const s=await api('/api/chrome_status');const p=$('prep');
@@ -679,6 +717,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, json.dumps(fazer_backup()))
         elif self.path == "/api/restaurar":
             self._send(200, json.dumps(restaurar_ultimo()))
+        elif self.path == "/api/importar":
+            self._send(200, json.dumps(importar_antigas()))
         elif self.path == "/api/travar_chrome":
             if not _chrome_status["baixando"]:
                 threading.Thread(target=baixar_chrome_travado,
