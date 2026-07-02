@@ -36,10 +36,36 @@ RAW_URL = ("https://raw.githubusercontent.com/i9automations/"
 
 
 def _base_dir():
-    # rodando como .exe (PyInstaller) -> pasta do exe; senao -> pasta do script
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.abspath(__file__))
+    # Dados SEMPRE em %LOCALAPPDATA%\Contas TikTok, nao ao lado do .exe. Assim a
+    # pessoa pode rodar o .exe de QUALQUER lugar (Downloads, Desktop) sem criar
+    # pasta e sem sujar a area de trabalho.
+    if not getattr(sys, "frozen", False):
+        # rodando como script (dev) -> pasta do script
+        return os.path.dirname(os.path.abspath(__file__))
+    import shutil
+    base = os.path.join(os.environ.get("LOCALAPPDATA")
+                        or os.path.expanduser("~"), "Contas TikTok")
+    try:
+        os.makedirs(base, exist_ok=True)
+    except Exception:
+        pass
+    # Migra dados de uma instalacao ANTIGA que ficava ao lado do .exe (uma vez).
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    if (os.path.abspath(exe_dir) != os.path.abspath(base)
+            and not os.path.exists(os.path.join(base, "contas.json"))):
+        for nome in ("contas.json", "navegadores", "contas", "backups"):
+            orig = os.path.join(exe_dir, nome)
+            if not os.path.exists(orig):
+                continue
+            dest = os.path.join(base, nome)
+            try:
+                if os.path.isdir(orig):
+                    shutil.copytree(orig, dest, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(orig, dest)
+            except Exception:
+                pass
+    return base
 
 
 BASE = _base_dir()
