@@ -11,8 +11,11 @@ Chrome e na barra de tarefas (pra você diferenciar as janelas, igual o Dolphin)
 
 COMO ABRIR O APP
 ----------------
-- Dois cliques no  "Contas TikTok.exe"   (o app de verdade — sem terminal).
-  (Se preferir, o ABRIR.bat também funciona.)
+- Dois cliques no  "Contas TikTok.exe".
+- Na primeira abertura, ele se instala sozinho em:
+  %LOCALAPPDATA%\Contas TikTok
+- Tambem cria o atalho "Contas TikTok" na Area de Trabalho e no Menu Iniciar.
+- Depois disso, use o atalho criado. Nao precisa guardar o arquivo baixado.
 
 COMO USAR
 ---------
@@ -35,24 +38,26 @@ foto: no Chrome, canto superior direito, clique no perfil -> "Personalizar perfi
 
 ONDE FICA O LOGIN
 -----------------
-- A lista de contas: arquivo  contas.json
-- Os logins (perfis do Chrome): pasta  navegadores\
+- A lista de contas e os logins ficam em:
+  %LOCALAPPDATA%\Contas TikTok
+- Cada conta tem seu proprio perfil em  contas\
+- Perfis antigos importados podem aparecer em  navegadores\
 Apagar uma conta no app (botão "Remover") apaga o perfil dela (precisa relogar).
 Feche o navegador da conta antes de remover.
 
 PRECISA
 -------
-- Google Chrome instalado (google.com/chrome).
+- Internet na primeira abertura, para baixar o app atualizado e o navegador proprio.
 - (Só pra editar/gerar o app de novo: Python. Pra USAR o .exe, não precisa.)
 
 ARQUIVOS
 --------
-- Contas TikTok.exe   -> o app (dois cliques)
+- Contas TikTok.exe   -> instalador/launcher do app
 - navegador.py        -> o código (caso queira editar)
 - ABRIR.bat           -> abre pelo Python (alternativa ao .exe)
 - app.ico             -> ícone do app
-- contas.json         -> suas contas
-- navegadores\        -> os perfis/logins do Chrome
+- contas\             -> perfis/logins das contas
+- navegadores\        -> perfis antigos/importacao legada
 - build_tmp\          -> lixo da geração do .exe (pode apagar)
 
 ⚠️ IMPORTANTE — LEIA

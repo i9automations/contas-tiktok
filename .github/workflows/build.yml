@@ -31,5 +31,5 @@ jobs:
         with:
           tag_name: app
           name: Contas TikTok (download)
-          body: "Baixe o Contas TikTok.exe abaixo. Dois cliques pra usar (precisa do Google Chrome)."
+          body: "Baixe o Contas TikTok.exe abaixo. Na primeira abertura ele se instala em AppData, cria atalhos no Desktop/Menu Iniciar e baixa o navegador proprio automaticamente."
           files: dist/*.exe

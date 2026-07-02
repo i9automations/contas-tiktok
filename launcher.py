@@ -94,7 +94,47 @@ def _baixar():
     raise RuntimeError("download falhou")
 
 
+def _criar_atalhos(exe):
+    # cria "Contas TikTok" na Area de Trabalho e no Menu Iniciar apontando pro exe.
+    # usa GetFolderPath (resolve Desktop redirecionado pro OneDrive).
+    exe = os.path.abspath(exe)
+    wd = os.path.dirname(exe)
+    pexe = exe.replace("'", "''")
+    pwd = wd.replace("'", "''")
+    ps = ("$s=New-Object -ComObject WScript.Shell;"
+          "foreach($p in @([Environment]::GetFolderPath('Desktop'),"
+          "[Environment]::GetFolderPath('Programs'))){"
+          "$l=$s.CreateShortcut((Join-Path $p 'Contas TikTok.lnk'));"
+          f"$l.TargetPath='{pexe}';"
+          f"$l.WorkingDirectory='{pwd}';"
+          f"$l.IconLocation='{pexe},0';"
+          "$l.Save()}")
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy",
+                        "Bypass", "-Command", ps],
+                       creationflags=0x08000000, timeout=25)
+    except Exception:
+        pass
+
+
+def _instalar_e_atalho():
+    # Copia o .exe pro %LOCALAPPDATA%\Contas TikTok e cria/atualiza os atalhos,
+    # pra virar um app de verdade (nao precisa mais achar/guardar o .exe).
+    if not getattr(sys, "frozen", False):
+        return
+    destino = os.path.join(BASE, "Contas TikTok.exe")
+    atual = os.path.abspath(sys.executable)
+    if os.path.abspath(destino) != atual:
+        try:
+            shutil.copy2(atual, destino)        # instala/atualiza o exe
+        except Exception:
+            if not os.path.exists(destino):
+                destino = atual                 # fallback: ainda cria atalho pro exe atual
+    _criar_atalhos(destino)
+
+
 def main():
+    _instalar_e_atalho()
     codigo = None
     try:
         codigo = _baixar()                      # tenta sempre a versao mais nova
